@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Flawed Hero Sponsors · Flawed Hero</title>
+<style>
+.sp{gap:12px}
+.sp .logobox{background:#fff;border-radius:14px;display:grid;place-items:center;padding:14px;min-height:130px;border:1px solid var(--line)}
+.sp .logobox img{max-width:100%;max-height:150px;object-fit:contain;display:block}
+.sp .logobox span{font-family:var(--head);font-size:26px;color:#4a3b2a;text-align:center}
+.sp h2{font-size:24px}
+.perk{border-left:3px solid var(--gold);background:var(--surface2);border-radius:0 12px 12px 0;padding:10px 14px}
+.perk b{font-family:var(--head);color:var(--gold);letter-spacing:.5px;text-transform:uppercase;font-size:.9em}
+.hid{opacity:.6}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Our Sponsors</h1>
+</div></header>
+<main class="wrap">
+  <p class="note">The businesses and organisations who back the Flawed Hero events. Please look after them, they look after us.</p>
+  <div id="list" style="display:flex;flex-direction:column;gap:14px"><p class="ph">Loading...</p></div>
+  <section class="card center">
+    <b>Would you like to sponsor Flawed Hero?</b>
+    <p class="muted">Get in touch with Phil or Michael to talk about what's possible.</p>
+    <div class="btns" style="justify-content:center"><a class="btn" href="contacts.html">Useful Contacts</a></div>
+  </section>
+
+  <section class="card" id="mgr" hidden>
+    <b>Manage sponsors (Michael and Phil only)</b>
+    <button class="btn alt" id="open">+ Add a sponsor</button>
+    <form id="form" hidden style="display:flex;flex-direction:column;gap:12px">
+      <label class="f">Sponsor name<input type="text" id="name" maxlength="100" required></label>
+      <label class="f">Level (e.g. Headline sponsor)<input type="text" id="tier" maxlength="40"></label>
+      <label class="f">Tagline<input type="text" id="tag" maxlength="140"></label>
+      <label class="f">About them<textarea id="desc" maxlength="800" style="min-height:100px"></textarea></label>
+      <label class="f">What heroes get (an offer, discount or message)<textarea id="perk" maxlength="400" style="min-height:70px"></textarea></label>
+      <label class="f">Website<input type="text" id="web" inputmode="url" placeholder="https://..."></label>
+      <label class="f">Contact email<input type="email" id="mail" maxlength="120"></label>
+      <label class="f">Logo<input type="file" id="logo" accept="image/*"></label>
+      <p class="note" id="keep" hidden>Leave the logo empty to keep the current one.</p>
+      <div class="btns"><button class="btn" id="save">Save sponsor</button><button type="button" class="btn ghost" id="cancel">Cancel</button></div>
+      <p class="err" id="msg" hidden></p>
+    </form>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script src="js/charities.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let me = null, rows = [], editing = null;
+const pic = p => !p ? '' : /^(https?:|assets\/)/.test(p) ? p : SB_URL + '/storage/v1/object/public/shop/' + p;
+
+async function load() {
+  const { data, error } = await sb.from('sponsors').select('*').order('sort').order('id');
+  if (error) { $('list').innerHTML = '<p class="err">Couldn’t load the sponsors. Check your signal and try again.</p>'; return; }
+  rows = data;
+  $('list').innerHTML = rows.length ? rows.map(s => {
+    const w = /^https:\/\//i.test(s.website || '') ? s.website : '';
+    return '<article class="card sp' + (s.active ? '' : ' hid') + '" data-id="' + s.id + '">' +
+      (s.tier ? '<span class="badge">' + esc(s.tier) + '</span>' : '') +
+      '<div class="logobox">' + (s.logo ? '<img src="' + esc(pic(s.logo)) + '" alt="' + esc(s.name) + '" loading="lazy">' : '<span>' + esc(s.name) + '</span>') + '</div>' +
+      '<h2>' + esc(s.name) + '</h2>' + (s.active ? '' : '<span class="chip s-denied">Hidden from members</span>') +
+      (s.tagline ? '<p class="tag">' + esc(s.tagline) + '</p>' : '') +
+      (s.description ? '<p class="muted">' + esc(s.description) + '</p>' : '') +
+      (s.perk ? '<div class="perk"><b>What heroes get</b><p>' + esc(s.perk) + '</p></div>' : '') +
+      '<div class="btns">' + (w ? '<a class="btn" href="' + esc(w) + '" target="_blank" rel="noopener">Visit website</a>' : '') +
+      (s.email ? '<a class="btn ghost" href="mailto:' + esc(s.email) + '">Email</a>' : '') +
+      (isStaff(me) ? '<button class="btn ghost" data-edit>Edit</button><button class="btn ghost" data-hide>' + (s.active ? 'Hide' : 'Show') + '</button><button class="btn ghost" data-del>Delete</button>' : '') +
+      '</div></article>';
+  }).join('') : '<section class="card center"><p class="ph">Our sponsors will appear here soon.</p></section>';
+}
+$('list').onclick = async e => {
+  const card = e.target.closest('.sp'); if (!card) return;
+  const s = rows.find(x => x.id === +card.dataset.id);
+  if (e.target.matches('[data-edit]')) {
+    editing = s; $('form').hidden = false; $('open').hidden = true; $('keep').hidden = false;
+    $('name').value = s.name; $('tier').value = s.tier || ''; $('tag').value = s.tagline || ''; $('desc').value = s.description || '';
+    $('perk').value = s.perk || ''; $('web').value = s.website || ''; $('mail').value = s.email || '';
+    $('mgr').scrollIntoView();
+  } else if (e.target.matches('[data-hide]')) {
+    const { error } = await sb.from('sponsors').update({ active: !s.active }).eq('id', s.id);
+    if (error) return alert(error.message); load();
+  } else if (e.target.matches('[data-del]')) {
+    if (!confirm('Delete "' + s.name + '" for good?')) return;
+    const { error } = await sb.from('sponsors').delete().eq('id', s.id);
+    if (error) return alert(error.message); load();
+  }
+};
+async function upload(file) {
+  const path = me.user_id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.png';
+  const blob = await shrinkLogo(file);
+  const { error } = await sb.storage.from('shop').upload(path, blob, { contentType: 'image/png' });
+  if (error) throw error;
+  return path;
+}
+$('open').onclick = () => { editing = null; $('form').reset(); $('keep').hidden = true; $('form').hidden = false; $('open').hidden = true; $('name').focus(); };
+$('cancel').onclick = () => { $('form').hidden = true; $('open').hidden = false; editing = null; };
+$('form').onsubmit = async e => {
+  e.preventDefault(); $('save').disabled = true; $('msg').hidden = true;
+  try {
+    const w = $('web').value.trim(); if (w && !/^https:\/\//i.test(w)) throw new Error('The website must start with https://');
+    const row = { name: $('name').value.trim(), tier: $('tier').value.trim() || null, tagline: $('tag').value.trim() || null, description: $('desc').value.trim() || null,
+      perk: $('perk').value.trim() || null, website: w || null, email: $('mail').value.trim() || null };
+    if ($('logo').files[0]) row.logo = await upload($('logo').files[0]);
+    const { error } = editing ? await sb.from('sponsors').update(row).eq('id', editing.id) : await sb.from('sponsors').insert(row);
+    if (error) throw error;
+    $('form').reset(); $('form').hidden = true; $('open').hidden = false; editing = null; load();
+  } catch (err) { $('msg').textContent = 'Couldn’t save: ' + err.message; $('msg').hidden = false; }
+  finally { $('save').disabled = false; }
+};
+guard().then(p => { if (!p) return; me = p; if (isStaff(p)) $('mgr').hidden = false; load(); });
+</script>
+</body>
+</html>

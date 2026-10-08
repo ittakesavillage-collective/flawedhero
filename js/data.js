@@ -1,5 +1,5 @@
 ﻿// Flawed Hero content. Bump VERSION here AND the CACHE name in sw.js together.
-const VERSION = '0.2.4';
+const VERSION = '0.2.5';
 
 // 24px line icons, drawn with currentColor
 const ICONS = {
@@ -26,7 +26,7 @@ const TILES = [
   {id:'charities', name:'My Charities', href:'mycharities.html'},
   {id:'network', name:'Charity Network', href:'network.html'},
   {id:'movement', name:'My Movement', href:'movement.html'},
-  {id:'sponsors', name:'Flawed Hero Sponsors'},
+  {id:'sponsors', name:'Flawed Hero Sponsors', href:'sponsors.html'},
   {id:'contacts', name:'Useful Contacts', href:'contacts.html'},
   {id:'mech', name:'Merch & Shop', href:'shop.html'}
 ];
