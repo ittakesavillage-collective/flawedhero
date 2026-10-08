@@ -1,5 +1,5 @@
 ﻿// Network-first: always fetch the latest when online (updates are automatic); fall back to cache offline.
-const CACHE = 'flawedhero-v0.3.1';
+const CACHE = 'flawedhero-v0.3.2';
 const SHELL = ['./', 'index.html', 'login.html', 'soon.html', 'profile.html', 'queue.html', 'settings.html', 'about.html', 'install.html', 'admin.html', 'contacts.html', 'cabinet.html', 'js/medals.js', 'js/charities.js', 'mycharities.html', 'network.html', 'diary.html', 'board.html', 'movement.html', 'shop.html', 'sponsors.html', 'notifications.html', 'js/push.js',
   'css/app.css', 'js/data.js', 'js/db.js', 'icons/icon-192.png', 'assets/splash.jpg', 'assets/collective-logo.webp'];
 

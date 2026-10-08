@@ -1,4 +1,4 @@
-/* Flawed Hero app styles. Palette from the Flawed Hero Marathon 2027 poster (navy / cream / amber / bronze).
+﻿/* Flawed Hero app styles. Palette from the Flawed Hero Marathon 2027 poster (navy / cream / amber / bronze).
    Themed this way for the 2027 event season (at least 7 months from Oct 2026): change tokens here only. */
 :root{
   --bg:#080D18; --surface:#16131B; --surface2:#201A22; --ink:#F2E3BE; --muted:#B79367; --line:#3A2B28;
@@ -140,3 +140,16 @@ form{scroll-margin-top:76px}
 /* Notification dots on tiles and the bell */
 .tile{position:relative}
 .tdot{position:absolute;top:10px;right:10px;min-width:20px;height:20px;border-radius:10px;background:var(--red);color:#fff;font:700 12px/20px var(--font);text-align:center;padding:0 5px;box-shadow:0 0 0 2px var(--bg)}
+
+/* Phones up to iPhone Pro Max width: five top-bar buttons must fit beside the full title */
+@media (max-width:450px){
+  .bar-in{padding:8px 4px 8px 12px;gap:0}
+  .brand{gap:8px}
+  .brand img{height:32px;width:32px}
+  .brand span{font-size:17px;letter-spacing:.3px}
+  .ib{width:33px;height:40px}
+  .ib svg{width:22px;height:22px}
+  .ib.cog svg{width:19px;height:19px}
+  .ib.admin,.ib.plus{font-size:26px}
+  .ib .dot{top:3px;right:0}
+}
