@@ -131,3 +131,9 @@ revoke all on public.contacts from anon;
 -- Hero's Cabinet medals (migration hero_cabinet_medals): events (fh-marathon, paddle, 5k, 10k, half) and results (user, event, year).
 -- Members read their own results; staff (admin + super) read all and award/remove. One Flawed Hero Marathon result per person per year.
 -- Tier ladder lives in js/medals.js: 1 silver, 3 gold, 5 platinum, 10 diamond.
+
+-- Notifications (migration `notifications`): tables notifications + push_subscriptions, RPC save_push/remove_push,
+-- helper notify/notify_role/notify_everyone, push_hook() trigger calling edge function send-push (pg_net),
+-- and triggers on profiles, requests, results, charities, diary_events, posts, marathon_entries.
+-- Routing: new member -> Michael+Phil; queue suggestion -> Michael; claims/charities/diary/posts/marathon bookings -> Phil;
+-- every decision -> the member; team posts -> everyone. Edge function needs secret VAPID_PRIVATE_KEY.
