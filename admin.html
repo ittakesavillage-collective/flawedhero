@@ -96,7 +96,7 @@ function drawMembers() {
   $('mlist').innerHTML = rows.length ? rows.map(m =>
     '<article class="card mem" data-id="' + m.user_id + '"><div class="row"><b>' + esc(m.name || '(no name)') + '</b><span class="chip st-' + m.status + '">' + ROLE_LABEL[m.role] + '</span></div>' +
     '<small class="muted">' + esc(m.email) + (m.phone ? ' &middot; ' + esc(m.phone) : '') + ' &middot; joined ' + ago(m.created_at) + '</small>' +
-    (m.kin_name ? '<small class="muted">Next of kin: ' + esc(m.kin_name) + (m.kin_relationship ? ' (' + esc(m.kin_relationship) + ')' : '') + ' ' + esc(m.kin_phone) + '</small>' : '') +
+    (m.kin_name ? '<small class="muted">Emergency contact: ' + esc(m.kin_name) + (m.kin_relationship ? ' (' + esc(m.kin_relationship) + ')' : '') + ' ' + esc(m.kin_phone) + '</small>' : '') +
     (m.hero_story ? '<p class="muted" style="white-space:pre-wrap">' + esc(m.hero_story) + '</p><small class="muted">Story: ' + (m.hero_story_choice === 'rework' ? 'wants us to rework it' : m.hero_story_choice === 'own' ? 'keep in own words' : 'not chosen yet') + '</small>' : '') +
     (m.status === 'approved' ? medalsBlock(m) : '') +
     '<div class="adm">' +
