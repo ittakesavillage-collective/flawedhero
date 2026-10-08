@@ -263,12 +263,14 @@ $('mlist').onchange = async e => {
 async function loadStats() {
   const cnt = async (t, f) => { let q = sb.from(t).select('*', { count: 'exact', head: true }); if (f) q = f(q); const { count } = await q; return count || 0; };
   const pub = q => q.eq('is_private', false);
+  const cm = await sb.rpc('community_movement');
   const [mAll, mOk, mPend, mBlock, rAll, rOpen, rDone, entrants] = await Promise.all([
     cnt('profiles'), cnt('profiles', q => q.eq('status', 'approved')), cnt('profiles', q => q.eq('status', 'pending')), cnt('profiles', q => q.eq('status', 'blocked')),
     cnt('requests', pub), cnt('requests', q => pub(q).in('status', ['suggested', 'accepted', 'planned', 'building'])), cnt('requests', q => pub(q).eq('status', 'done')), cnt('marathon_entries', q => q.eq('status', 'approved'))]);
   const box = (n, l) => '<div class="card" style="padding:12px"><b style="font-family:var(--head);font-size:30px;color:var(--gold)">' + n + '</b><small class="muted">' + l + '</small></div>';
   $('stats').innerHTML = box(mAll, 'Registered') + box(mOk, 'Approved') + box(mPend, 'Waiting for approval') + box(mBlock, 'Blocked') +
-    box(rAll, 'Suggestions') + box(rOpen, 'Still open') + box(rDone, 'Done') + box(entrants, 'Marathon entrants (confirmed)');
+    box(rAll, 'Suggestions') + box(rOpen, 'Still open') + box(rDone, 'Done') + box(entrants, 'Marathon entrants (confirmed)') +
+    box(cm.data && cm.data[0] ? Math.round(Number(cm.data[0].total_km)).toLocaleString('en-GB') : 0, 'km moved by heroes');
 }
 
 /* ---------- Development queue ---------- */
