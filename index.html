@@ -21,7 +21,7 @@
 <div id="splash" role="img" aria-label="The Flawed Hero Marathon 2027. Flawed. Not Broken."></div>
 <header class="bar"><div class="bar-in">
   <a class="brand" href="./"><img src="icons/icon-192.png" alt="" width="38" height="38"><span>Flawed Hero</span></a>
-  <!-- Michael only: the admin !. Everyone else gets the + (development queue). -->
+  <!-- Admin gets the !; everyone (admin too) gets the + (development queue). -->
   <a class="ib admin" id="adm" href="admin.html" aria-label="Admin" hidden>!<span class="dot" id="dot" hidden></span></a>
   <a class="ib plus" id="plus" href="queue.html" aria-label="Development queue and suggestions" hidden>+</a>
   <a class="ib" href="settings.html" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a>
@@ -60,7 +60,8 @@ guard().then(async p => {
     const { count: rc } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'suggested');
     const n = (count || 0) + (rc || 0);
     if (n) { const d = document.getElementById('dot'); d.textContent = n; d.hidden = false; }
-  } else document.getElementById('plus').hidden = false;
+  }
+  document.getElementById('plus').hidden = false; // everyone, including the admin, sees what members see
 });
 
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;

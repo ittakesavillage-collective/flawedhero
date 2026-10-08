@@ -25,6 +25,13 @@
   </section>
 
   <section id="queue" hidden>
+    <form class="card" id="idea" style="margin-bottom:12px">
+      <b>Add your own idea</b>
+      <label class="f">Idea in a few words<input type="text" id="it" maxlength="120" required></label>
+      <label class="f">More detail (optional)<textarea id="ib" maxlength="1000" style="min-height:80px"></textarea></label>
+      <div class="btns"><button class="btn" id="isend">Add to the queue</button></div>
+      <p class="note" id="imsg" hidden></p>
+    </form>
     <div id="qlist" style="display:flex;flex-direction:column;gap:12px"></div>
   </section>
 </main>
@@ -90,6 +97,14 @@ $('mlist').onchange = async e => {
 };
 
 /* ---------- Development queue ---------- */
+// Your own ideas go straight in as Accepted (members' suggestions arrive as Suggested)
+$('idea').onsubmit = async e => {
+  e.preventDefault(); $('isend').disabled = true; $('imsg').hidden = true;
+  const ins = await sb.from('requests').insert({ title: $('it').value.trim(), body: $('ib').value.trim() }).select().single();
+  if (ins.error) { $('imsg').textContent = ins.error.message; $('imsg').hidden = false; $('isend').disabled = false; return; }
+  await sb.from('requests').update({ status: 'accepted', updated_at: new Date().toISOString() }).eq('id', ins.data.id);
+  $('idea').reset(); $('isend').disabled = false; loadQueue();
+};
 const QORDER = { suggested:0, accepted:1, planned:2, building:3, later:4, done:5, denied:6 };
 let reqs = [];
 async function loadQueue() {
