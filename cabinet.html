@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Hero's Cabinet · Flawed Hero</title>
+<style>
+.shelf{display:grid;gap:6px 0;padding:6px 4px 0;border-bottom:6px solid var(--bronze);border-radius:0 0 4px 4px;box-shadow:0 8px 10px -8px #000}
+.shelf.three{grid-template-columns:repeat(3,1fr)}
+.shelf.two{grid-template-columns:repeat(2,1fr);row-gap:14px}
+.slot{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding-bottom:10px}
+.slot svg{width:min(92px,24vw);height:auto;overflow:visible}
+.slot b{font-family:var(--head);font-weight:500;letter-spacing:.5px;text-transform:uppercase;font-size:.95em;line-height:1.2}
+.slot small{color:var(--muted);line-height:1.2}
+.slot.empty b{color:var(--muted)}
+.slot.empty svg{opacity:.55}
+.shine{animation:shine 3.2s ease-in-out infinite}
+@keyframes shine{0%,100%{filter:drop-shadow(0 0 2px rgb(255 255 255 / .15))}50%{filter:drop-shadow(0 0 9px rgb(255 255 255 / .55))}}
+@media (prefers-reduced-motion:reduce){.shine{animation:none}}
+.ladder{display:flex;flex-wrap:wrap;gap:8px 14px}
+.ladder span{display:flex;align-items:center;gap:6px;font-size:.9em}
+.ladder i{width:14px;height:14px;border-radius:50%;display:inline-block}
+.prog{height:8px;border-radius:4px;background:var(--surface2);overflow:hidden}
+.prog>div{height:100%;background:var(--gold)}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Hero's Cabinet</h1>
+</div></header>
+<main class="wrap">
+  <section class="card">
+    <b id="who">Your medals</b>
+    <p class="note">Every official event you complete earns a medal. Do more, and your medals get better.</p>
+    <div class="ladder" id="ladder"></div>
+  </section>
+
+  <section class="card">
+    <div class="row"><h2 style="font-size:20px">Flawed Hero Marathon</h2><span class="chip" id="mcount"></span></div>
+    <div class="shelf three" id="marathons"></div>
+    <div id="mprog"></div>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:20px">Other events</h2>
+    <div class="shelf two" id="others"></div>
+  </section>
+  <p class="note">Medals are added by the Flawed Hero team after each event.</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script src="js/medals.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+$('ladder').innerHTML = TIERS.map(t => '<span><i style="background:linear-gradient(135deg,' + t.hi + ',' + t.lo + ')"></i>' + t.name + ' &middot; ' + t.min + (t.min > 1 ? '+' : '') + '</span>').join('');
+
+guard().then(async p => {
+  if (!p) return;
+  $('who').textContent = (p.name ? p.name.split(' ')[0] + '’s' : 'Your') + ' medals';
+  const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('event_id, year').eq('user_id', p.user_id)]);
+  if (ev.error || rs.error) { $('marathons').innerHTML = '<p class="err">Couldn’t load your cabinet. Check your signal and try again.</p>'; return; }
+  const mine = rs.data;
+
+  // Flawed Hero Marathon: one slot per year (2024, 2025, 2026, plus any later year they hold). Colour = their marathon count.
+  const years = new Set([2024, 2025, 2026]); mine.filter(r => r.event_id === 'fh-marathon').forEach(r => years.add(r.year));
+  const done = new Set(mine.filter(r => r.event_id === 'fh-marathon').map(r => r.year));
+  const n = done.size, tier = tierFor(n);
+  $('marathons').innerHTML = [...years].sort().map(y => slot(done.has(y) ? tier : null, y, done.has(y) ? 'Finisher' : 'Not yet')).join('');
+  $('mcount').textContent = n + (n === 1 ? ' finish' : ' finishes');
+  $('mprog').innerHTML = progress(n);
+
+  // Other events: one medal each, colour = how many times completed
+  $('others').innerHTML = ev.data.filter(e => e.id !== 'fh-marathon').map(e => {
+    const c = mine.filter(r => r.event_id === e.id).length;
+    return slot(tierFor(c), e.name, c ? c + (c === 1 ? ' time' : ' times') : 'Not yet');
+  }).join('');
+});
+</script>
+</body>
+</html>

@@ -46,7 +46,7 @@
 <script src="js/db.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-let me = null, mfilter = 'pending', members = [];
+let me = null, mfilter = 'pending', members = [], events = [], results = [];
 const ROLE_LABEL = { admin: 'Admin', super: 'Super user', member: 'Member' };
 
 // Michael (admin) manages everything. Super users (Phil) can approve members but not change roles or the queue.
@@ -67,8 +67,12 @@ $('tabs').onclick = e => { if (e.target.dataset.v) tab(e.target.dataset.v); };
 async function loadMembers() {
   const { data, error } = await sb.from('profiles').select('*').order('created_at', { ascending: false });
   if (error) { $('mlist').innerHTML = '<p class="err">' + esc(error.message) + '</p>'; return; }
-  members = data; drawMembers();
+  members = data;
+  const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('*')]);
+  events = ev.data || []; results = rs.data || [];
+  drawMembers();
 }
+const evName = id => (events.find(e => e.id === id) || { name: id }).name;
 function drawMembers() {
   const counts = { pending: 0, approved: 0, blocked: 0 }; members.forEach(m => counts[m.status]++);
   $('mf').innerHTML = ['pending', 'approved', 'blocked'].map(s =>
@@ -79,6 +83,7 @@ function drawMembers() {
     '<small class="muted">' + esc(m.email) + (m.phone ? ' &middot; ' + esc(m.phone) : '') + ' &middot; joined ' + ago(m.created_at) + '</small>' +
     (m.kin_name ? '<small class="muted">Next of kin: ' + esc(m.kin_name) + (m.kin_relationship ? ' (' + esc(m.kin_relationship) + ')' : '') + ' ' + esc(m.kin_phone) + '</small>' : '') +
     (m.hero_story ? '<p class="muted" style="white-space:pre-wrap">' + esc(m.hero_story) + '</p><small class="muted">Story: ' + (m.hero_story_choice === 'rework' ? 'wants us to rework it' : m.hero_story_choice === 'own' ? 'keep in own words' : 'not chosen yet') + '</small>' : '') +
+    (m.status === 'approved' ? medalsBlock(m) : '') +
     '<div class="adm">' +
       (m.status !== 'approved' ? '<button class="btn" data-a="approved">Approve</button>' : '') +
       (m.status !== 'blocked' && m.user_id !== me.user_id ? '<button class="btn ghost" data-a="blocked">Block</button>' : '') +
@@ -86,8 +91,32 @@ function drawMembers() {
       (isAdmin(me) && m.user_id !== me.user_id ? '<select data-role aria-label="Role">' + ['member', 'super', 'admin'].map(r => '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>').join('') + '</select>' : '') +
     '</div></article>').join('') : '<p class="ph">Nobody here.</p>';
 }
+// Medals: staff (Michael, Phil) record completed events; the Hero's Cabinet fills in from these
+function medalsBlock(m) {
+  const mine = results.filter(r => r.user_id === m.user_id);
+  return '<div class="adm" style="flex-direction:column;align-items:stretch"><b style="font-size:.95em">Medals</b>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px">' + (mine.length ? mine.map(r => '<span class="chip">' + esc(evName(r.event_id)) + ' ' + r.year +
+      ' <button data-rm="' + r.id + '" aria-label="Remove" style="background:none;border:0;color:inherit;cursor:pointer;font-size:1.1em;padding:0 0 0 4px">&times;</button></span>').join('') : '<small class="muted">None yet</small>') + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><select data-ev aria-label="Event">' + events.map(e => '<option value="' + e.id + '">' + esc(e.name) + '</option>').join('') + '</select>' +
+    '<input type="number" data-yr min="2000" max="2100" value="' + new Date().getFullYear() + '" style="width:90px;min-height:40px;padding:6px 10px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface2);color:var(--ink)" aria-label="Year">' +
+    '<button class="btn" data-award style="min-height:40px">Award</button></div></div>';
+}
 $('mf').onclick = e => { if (e.target.dataset.f) { mfilter = e.target.dataset.f; drawMembers(); } };
 $('mlist').onclick = async e => {
+  const card = e.target.closest('.card');
+  if (e.target.closest('[data-award]')) {
+    const uid = card.dataset.id, ev = card.querySelector('[data-ev]').value, yr = +card.querySelector('[data-yr]').value;
+    const { data, error } = await sb.from('results').insert({ user_id: uid, event_id: ev, year: yr }).select().single();
+    if (error) return alert(/duplicate|unique/i.test(error.message) ? 'They already have that Flawed Hero Marathon year.' : error.message);
+    results.push(data); drawMembers(); return;
+  }
+  const rm = e.target.closest('[data-rm]');
+  if (rm) {
+    if (!confirm('Remove this medal?')) return;
+    const { error } = await sb.from('results').delete().eq('id', +rm.dataset.rm);
+    if (error) return alert(error.message);
+    results = results.filter(r => r.id !== +rm.dataset.rm); drawMembers(); return;
+  }
   const b = e.target.closest('button[data-a]'); if (!b) return;
   const m = members.find(x => x.user_id === b.closest('.card').dataset.id);
   b.disabled = true;

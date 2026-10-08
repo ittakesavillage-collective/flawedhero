@@ -127,3 +127,7 @@ revoke all on public.contacts from anon;
 -- alter table public.requests add column is_private boolean not null default false;
 -- request_defaults() keeps is_private only when the caller is the admin; the select policy
 -- "approved read queue" hides private rows from everyone except the admin; grant update (is_private).
+
+-- Hero's Cabinet medals (migration hero_cabinet_medals): events (fh-marathon, paddle, 5k, 10k, half) and results (user, event, year).
+-- Members read their own results; staff (admin + super) read all and award/remove. One Flawed Hero Marathon result per person per year.
+-- Tier ladder lives in js/medals.js: 1 silver, 3 gold, 5 platinum, 10 diamond.
