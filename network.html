@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Charity Network · Flawed Hero</title>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Charity Network</h1>
+</div></header>
+<main class="wrap">
+  <p class="note">Every charity our heroes run for. Tap <b>Add to mine</b> to put one on your My Charities page.</p>
+  <input type="text" id="q" placeholder="Search charities" aria-label="Search charities">
+  <div id="list" style="display:flex;flex-direction:column;gap:12px"><p class="ph">Loading...</p></div>
+  <a class="btn alt" href="mycharities.html#add">Can't see yours? Add a charity</a>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script src="js/charities.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let me = null, all = [], mine = new Set(), counts = {};
+
+function draw() {
+  const q = $('q').value.trim().toLowerCase();
+  const rows = all.filter(c => !q || c.name.toLowerCase().includes(q));
+  $('list').innerHTML = rows.length ? rows.map(c => {
+    const has = mine.has(c.id), n = counts[c.id] || 0, w = safeUrl(c.website);
+    return '<article class="card ch" data-id="' + c.id + '"><div class="row" style="justify-content:flex-start;gap:14px;align-items:center">' + logoTile(c, true) +
+      '<div style="flex:1;min-width:0"><h3 style="font-size:18px">' + esc(c.name) + '</h3>' +
+      '<small class="muted">' + n + (n === 1 ? ' hero backs this' : ' heroes back this') + '</small></div></div>' +
+      (c.description ? '<p class="muted">' + esc(c.description) + '</p>' : '') +
+      '<div class="btns">' + (has ? '<button class="btn ghost" data-rm>In my charities &#10003;</button>' : '<button class="btn" data-add>Add to mine</button>') +
+      (w ? '<a class="btn ghost" href="' + esc(w) + '" target="_blank" rel="noopener">Website</a>' : '') + '</div></article>';
+  }).join('') : '<p class="ph">' + (q ? 'No charity matches that.' : 'No charities in the network yet. Be the first to add one.') + '</p>';
+}
+async function load() {
+  const [c, m, n] = await Promise.all([
+    sb.from('charities').select('*').eq('status', 'approved').order('name'),
+    sb.from('my_charities').select('charity_id'),
+    sb.rpc('charity_counts')]);
+  if (c.error) { $('list').innerHTML = '<p class="err">Couldn’t load the network. Check your signal and try again.</p>'; return; }
+  all = c.data; mine = new Set((m.data || []).map(r => r.charity_id));
+  counts = {}; (n.data || []).forEach(r => counts[r.charity_id] = Number(r.supporters));
+  draw();
+}
+$('q').oninput = draw;
+$('list').onclick = async e => {
+  const card = e.target.closest('.ch'); if (!card) return;
+  const id = +card.dataset.id;
+  if (e.target.matches('[data-add]')) {
+    e.target.disabled = true;
+    const { error } = await sb.from('my_charities').insert({ user_id: me.user_id, charity_id: id });
+    if (error && !/duplicate/i.test(error.message)) { alert(error.message); e.target.disabled = false; return; }
+    mine.add(id); counts[id] = (counts[id] || 0) + 1; draw();
+  } else if (e.target.matches('[data-rm]')) {
+    if (!confirm('Remove this from your charities?')) return;
+    const { error } = await sb.from('my_charities').delete().eq('charity_id', id).eq('user_id', me.user_id);
+    if (error) return alert(error.message);
+    mine.delete(id); counts[id] = Math.max(0, (counts[id] || 1) - 1); draw();
+  }
+};
+guard().then(p => { if (!p) return; me = p; load(); });
+</script>
+</body>
+</html>

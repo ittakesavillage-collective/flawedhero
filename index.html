@@ -59,7 +59,8 @@ guard().then(async p => {
     document.getElementById('adm').hidden = false;
     const { count } = await sb.from('profiles').select('user_id', { count: 'exact', head: true }).eq('status', 'pending');
     const { count: cc } = await sb.from('results').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-    let n = (count || 0) + (cc || 0);
+    const { count: hc } = await sb.from('charities').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+    let n = (count || 0) + (cc || 0) + (hc || 0);
     if (isAdmin(p)) { const { count: rc } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'suggested').eq('is_private', false); n += rc || 0; }
     if (n) { const d = document.getElementById('dot'); d.textContent = n; d.hidden = false; }
   }

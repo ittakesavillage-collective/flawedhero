@@ -17,7 +17,7 @@
   <h1>Admin</h1>
 </div></header>
 <main class="wrap">
-  <div class="seg" id="tabs"><button data-v="members" aria-pressed="true">Members</button><button data-v="claims" aria-pressed="false" id="ctab">Claims</button><button data-v="queue" aria-pressed="false" id="qtab">Queue</button><button data-v="info" aria-pressed="false">Overview</button></div>
+  <div class="seg" id="tabs"><button data-v="members" aria-pressed="true">Members</button><button data-v="claims" aria-pressed="false" id="ctab">Approvals</button><button data-v="queue" aria-pressed="false" id="qtab">Queue</button><button data-v="info" aria-pressed="false">Overview</button></div>
 
   <section id="members">
     <div class="chips" style="display:flex;gap:6px;margin-bottom:12px" id="mf"></div>
@@ -25,6 +25,9 @@
   </section>
 
   <section id="claims" hidden>
+    <h3 style="font-size:18px;margin-bottom:8px">New charities</h3>
+    <div id="chlist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
+    <h3 style="font-size:18px;margin-bottom:8px">Medal claims</h3>
     <div id="clist" style="display:flex;flex-direction:column;gap:12px"></div>
   </section>
 
@@ -48,6 +51,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/data.js"></script>
 <script src="js/db.js"></script>
+<script src="js/charities.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 let me = null, mfilter = 'pending', members = [], events = [], results = [];
@@ -74,7 +78,7 @@ async function loadMembers() {
   members = data;
   const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('*')]);
   events = ev.data || []; results = rs.data || [];
-  drawMembers(); drawClaims();
+  drawMembers(); drawClaims(); loadCharities();
 }
 const evName = id => (events.find(e => e.id === id) || { name: id }).name;
 function drawMembers() {
@@ -95,10 +99,47 @@ function drawMembers() {
       (isAdmin(me) && m.user_id !== me.user_id ? '<select data-role aria-label="Role">' + ['member', 'super', 'admin'].map(r => '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>').join('') + '</select>' : '') +
     '</div></article>').join('') : '<p class="ph">Nobody here.</p>';
 }
+let pendingClaims = 0, pendingCharities = 0, charities = [];
+const tabCount = () => { const n = pendingClaims + pendingCharities; $('ctab').textContent = n ? 'Approvals (' + n + ')' : 'Approvals'; };
+
+// New charities: staff check the name and logo, then approve (they join the network) or reject
+async function loadCharities() {
+  const { data, error } = await sb.from('charities').select('*').eq('status', 'pending').order('created_at');
+  if (error) { $('chlist').innerHTML = '<p class="err">' + esc(error.message) + '</p>'; return; }
+  charities = data; pendingCharities = data.length; tabCount();
+  $('chlist').innerHTML = data.length ? data.map(c => {
+    const by = members.find(m => m.user_id === c.created_by), w = safeUrl(c.website);
+    return '<article class="card mem" data-cid="' + c.id + '"><div class="row" style="justify-content:flex-start;gap:14px;align-items:center">' + logoTile(c, true) +
+      '<div style="flex:1;min-width:0"><b>' + esc(c.name) + '</b><br><small class="muted">Added by ' + esc(by ? by.name : 'a member') + ' &middot; ' + ago(c.created_at) + '</small></div></div>' +
+      (c.description ? '<p class="muted">' + esc(c.description) + '</p>' : '') +
+      (w ? '<p><a href="' + esc(w) + '" target="_blank" rel="noopener">' + esc(w) + '</a></p>' : '') +
+      '<div class="adm"><button class="btn" data-cok>Approve</button><button class="btn ghost" data-cno>Reject</button>' +
+      '<label class="btn ghost" style="cursor:pointer">Replace logo<input type="file" accept="image/*" data-clogo hidden></label></div></article>';
+  }).join('') : '<p class="ph">No charities waiting.</p>';
+}
+$('chlist').onclick = async e => {
+  const ok = e.target.matches('[data-cok]'), no = e.target.matches('[data-cno]'); if (!ok && !no) return;
+  const id = +e.target.closest('.card').dataset.cid; e.target.disabled = true;
+  const { error } = await sb.from('charities').update({ status: ok ? 'approved' : 'rejected', decided_by: me.user_id, decided_at: new Date().toISOString() }).eq('id', id);
+  if (error) { alert(error.message); e.target.disabled = false; return; }
+  loadCharities();
+};
+$('chlist').onchange = async e => {
+  if (!e.target.matches('[data-clogo]')) return;
+  const f = e.target.files[0]; if (!f) return;
+  const id = +e.target.closest('.card').dataset.cid;
+  try {
+    const path = await uploadLogo(f, me.user_id);
+    const { error } = await sb.from('charities').update({ logo_path: path }).eq('id', id);
+    if (error) throw error;
+    loadCharities();
+  } catch (err) { alert('Couldn\u2019t replace the logo: ' + err.message); }
+};
+
 // Claims: members say "I did this"; staff approve or reject
 function drawClaims() {
   const pend = results.filter(r => r.status === 'pending').sort((x, y) => new Date(x.created_at) - new Date(y.created_at));
-  $('ctab').textContent = pend.length ? 'Claims (' + pend.length + ')' : 'Claims';
+  pendingClaims = pend.length; tabCount();
   $('clist').innerHTML = pend.length ? pend.map(r => {
     const m = members.find(x => x.user_id === r.user_id) || { name: '(unknown)' };
     return '<article class="card mem" data-rid="' + r.id + '"><div class="row"><b>' + esc(m.name || m.email) + '</b><span class="chip">' + ago(r.created_at) + '</span></div>' +

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>My Charities · Flawed Hero</title>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>My Charities</h1>
+</div></header>
+<main class="wrap">
+  <p class="note">The charities you're running for. Pick them from the network, or add one that isn't there yet.</p>
+  <div id="list" style="display:flex;flex-direction:column;gap:12px"><p class="ph">Loading...</p></div>
+  <div class="btns"><a class="btn" href="network.html">Browse the Charity Network</a></div>
+
+  <section class="card" id="add">
+    <button class="btn alt" id="open">+ Add a charity that isn't in the network</button>
+    <form id="form" hidden style="display:flex;flex-direction:column;gap:12px">
+      <label class="f">Charity name<input type="text" id="name" maxlength="80" autocomplete="off" required></label>
+      <div id="matches"></div>
+      <label class="f">Website (optional)<input type="text" id="web" maxlength="200" inputmode="url" placeholder="e.g. www.macmillan.org.uk"></label>
+      <label class="f">A line about them (optional)<input type="text" id="desc" maxlength="300"></label>
+      <div class="row" style="justify-content:flex-start;gap:14px">
+        <div class="logo" id="prev" style="width:72px;height:72px"><span>?</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label class="btn ghost" for="logo" style="cursor:pointer">Upload their official logo</label>
+          <input type="file" id="logo" accept="image/*" hidden>
+          <small class="muted">Use the logo from the charity's own website or press page.</small>
+        </div>
+      </div>
+      <p class="note">New charities are checked by Michael or Phil before they appear in the network. You'll see yours straight away.</p>
+      <div class="btns"><button class="btn" id="send">Add charity</button><button type="button" class="btn ghost" id="cancel">Cancel</button></div>
+      <p class="err" id="msg" hidden></p>
+    </form>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script src="js/charities.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let me = null, approved = [], file = null;
+
+async function load() {
+  const [m, a] = await Promise.all([
+    sb.from('my_charities').select('charity_id, charities(id, name, website, description, logo_path, status)').order('created_at', { ascending: false }),
+    sb.from('charities').select('id, name').eq('status', 'approved')]);
+  approved = a.data || [];
+  if (m.error) { $('list').innerHTML = '<p class="err">Couldn’t load your charities. Check your signal and try again.</p>'; return; }
+  const rows = m.data.map(r => r.charities).filter(Boolean);
+  $('list').innerHTML = rows.length ? rows.map(c => {
+    const w = safeUrl(c.website);
+    return '<article class="card ch" data-id="' + c.id + '"><div class="row" style="justify-content:flex-start;gap:14px;align-items:center">' + logoTile(c, true) +
+      '<div style="flex:1;min-width:0"><h3 style="font-size:18px">' + esc(c.name) + '</h3>' +
+      (c.status === 'pending' ? '<span class="chip s-suggested">Waiting for approval</span>' : c.status === 'rejected' ? '<span class="chip s-denied">Not approved</span>' : '') + '</div></div>' +
+      (c.description ? '<p class="muted">' + esc(c.description) + '</p>' : '') +
+      (c.status === 'rejected' ? '<p class="note">The team couldn’t add this one to the network. Get in touch if that looks wrong.</p>' : '') +
+      '<div class="btns">' + (w ? '<a class="btn ghost" href="' + esc(w) + '" target="_blank" rel="noopener">Website</a>' : '') +
+      '<button class="btn ghost" data-rm>Remove</button></div></article>';
+  }).join('') : '<section class="card center"><p class="ph">Nothing here yet.</p><p class="muted">Add a charity from the network, or add your own below.</p></section>';
+}
+$('list').onclick = async e => {
+  if (!e.target.matches('[data-rm]')) return;
+  if (!confirm('Remove this from your charities?')) return;
+  const id = +e.target.closest('.ch').dataset.id;
+  const { error } = await sb.from('my_charities').delete().eq('charity_id', id).eq('user_id', me.user_id);
+  if (error) return alert(error.message);
+  load();
+};
+
+// Add form: warn if it already exists in the network so people pick it instead of duplicating it
+const openForm = () => { $('form').hidden = false; $('open').hidden = true; $('name').focus(); };
+$('open').onclick = openForm; if (location.hash === '#add') openForm();
+$('cancel').onclick = () => { $('form').hidden = true; $('open').hidden = false; };
+$('name').oninput = () => {
+  const q = $('name').value.trim().toLowerCase();
+  const hits = q.length >= 3 ? approved.filter(c => c.name.toLowerCase().includes(q)).slice(0, 3) : [];
+  $('matches').innerHTML = hits.length ? '<p class="note">Already in the network:</p>' + hits.map(c =>
+    '<div class="row"><span>' + esc(c.name) + '</span><button type="button" class="btn ghost" data-pick="' + c.id + '" style="min-height:36px;padding:2px 14px">Add this one</button></div>').join('') : '';
+};
+$('matches').onclick = async e => {
+  const b = e.target.closest('[data-pick]'); if (!b) return;
+  b.disabled = true;
+  const { error } = await sb.from('my_charities').insert({ user_id: me.user_id, charity_id: +b.dataset.pick });
+  if (error && !/duplicate/i.test(error.message)) { alert(error.message); b.disabled = false; return; }
+  $('form').reset(); $('matches').innerHTML = ''; $('form').hidden = true; $('open').hidden = false; load();
+};
+$('logo').onchange = async e => {
+  file = e.target.files[0] || null; if (!file) return;
+  const u = URL.createObjectURL(file); $('prev').innerHTML = '<img src="' + u + '" alt="">';
+};
+$('form').onsubmit = async e => {
+  e.preventDefault(); $('send').disabled = true; $('msg').hidden = true;
+  try {
+    const row = { name: $('name').value.trim(), website: safeUrl($('web').value) || null, description: $('desc').value.trim() || null };
+    if (file) row.logo_path = await uploadLogo(file, me.user_id);
+    const { data, error } = await sb.from('charities').insert(row).select().single();
+    if (error) throw error;
+    const j = await sb.from('my_charities').insert({ user_id: me.user_id, charity_id: data.id });
+    if (j.error) throw j.error;
+    $('form').reset(); file = null; $('prev').innerHTML = '<span>?</span>'; $('matches').innerHTML = ''; $('form').hidden = true; $('open').hidden = false;
+    load();
+  } catch (err) {
+    $('msg').textContent = /duplicate|unique/i.test(err.message) ? 'That charity is already in the network or waiting for approval. Search for it on the network page.' : 'Couldn’t add it: ' + err.message;
+    $('msg').hidden = false;
+  } finally { $('send').disabled = false; }
+};
+guard().then(p => { if (!p) return; me = p; load(); });
+</script>
+</body>
+</html>
