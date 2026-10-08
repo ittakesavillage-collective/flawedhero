@@ -42,6 +42,7 @@ details summary{cursor:pointer;color:var(--muted);padding:8px 0}
       <label class="f">What's happening?<input type="text" id="title" maxlength="120" required></label>
       <label class="f">Date<input type="date" id="date" required></label>
       <label class="f">Start time (leave empty for an all-day event)<input type="time" id="time"></label>
+      <label class="f">End time (optional)<input type="time" id="etime"></label>
       <label class="f">Where? (optional)<input type="text" id="loc" maxlength="120"></label>
       <label class="f">Details (optional)<textarea id="desc" maxlength="600" style="min-height:90px"></textarea></label>
       <label class="f">Link (optional)<input type="text" id="link" maxlength="200" inputmode="url" placeholder="e.g. www.example.com/entry"></label>
@@ -102,7 +103,7 @@ function evCard(x) {
       (isStaff(me) ? '<span class="chip">' + n + (n === 1 ? ' hero plans' : ' heroes plan') + ' to attend</span>' : '') : '';
   return '<article class="card ev" data-id="' + x.id + '">' + (x.image ? '<img src="' + esc(pic(x.image)) + '" alt="" loading="lazy" style="width:100%;border-radius:12px;display:block">' : '') + '<div class="row"><div class="date"><b>' + d.getDate() + '</b><small>' + d.toLocaleDateString('en-GB', { month: 'short' }) + '</small></div>' +
     '<div class="meta"><h3 style="font-size:18px">' + esc(x.title) + '</h3>' +
-    '<small class="muted">' + (x.all_day ? 'All day' : fmtTime(x.starts_at)) + ' &middot; ' + d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric' }) + (x.location ? ' &middot; ' + esc(x.location) : '') + '</small>' +
+    '<small class="muted">' + (x.all_day ? 'All day' : fmtTime(x.starts_at) + (x.ends_at ? ' to ' + fmtTime(x.ends_at) : '')) + ' &middot; ' + d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric' }) + (x.location ? ' &middot; ' + esc(x.location) : '') + '</small>' +
     (x.status === 'pending' ? '<br><span class="chip s-suggested">Waiting for approval</span>' : x.status === 'rejected' ? '<br><span class="chip s-denied">Not approved</span>' : '') + '</div></div>' +
     (x.description ? '<p class="muted">' + esc(x.description) + '</p>' : '') +
     ((w || attend || isStaff(me) || (mine && x.status === 'pending')) ? '<div class="btns">' + attend + (w ? '<a class="btn ghost" href="' + esc(w) + '" target="_blank" rel="noopener">' + (x.allow_attend ? 'Tickets and info' : 'More info') + '</a>' : '') +
@@ -145,6 +146,7 @@ $('form').onsubmit = async e => {
   e.preventDefault(); $('send').disabled = true; $('msg').hidden = true;
   const time = $('time').value;
   const row = { title: $('title').value.trim(), starts_at: new Date($('date').value + 'T' + (time || '00:00')).toISOString(), all_day: !time,
+    ends_at: (time && $('etime').value) ? new Date($('date').value + 'T' + $('etime').value).toISOString() : null,
     location: $('loc').value.trim() || null, description: $('desc').value.trim() || null, link: safeUrl($('link').value) || null };
   try {
     if (isStaff(me)) {
