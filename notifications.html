@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Notifications · Flawed Hero</title>
+<style>
+.nt{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line);color:var(--ink);text-decoration:none}
+.nt.unread{border-color:var(--gold);background:linear-gradient(160deg,#2A1814,var(--surface) 70%)}
+.nt .pip{flex:none;width:10px;height:10px;border-radius:50%;margin-top:7px;background:transparent}
+.nt.unread .pip{background:var(--red)}
+.nt b{display:block}
+.nt small{color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Notifications</h1>
+</div></header>
+<main class="wrap">
+  <div class="btns"><button class="btn ghost" id="all" hidden>Mark all as read</button></div>
+  <div id="list" style="display:flex;flex-direction:column;gap:10px"><p class="ph">Loading...</p></div>
+  <p class="note">Want these on your phone too? Turn them on in <a href="settings.html">Settings</a>.</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let rows = [];
+function draw() {
+  $('all').hidden = !rows.some(r => !r.read_at);
+  $('list').innerHTML = rows.length ? rows.map(r =>
+    '<a class="nt' + (r.read_at ? '' : ' unread') + '" href="' + esc(r.url) + '" data-id="' + r.id + '"><span class="pip"></span><div style="flex:1;min-width:0">' +
+    '<b>' + esc(r.title) + '</b>' + (r.body ? '<span class="muted">' + esc(r.body) + '</span><br>' : '') + '<small>' + ago(r.created_at) + '</small></div></a>').join('')
+    : '<p class="ph">Nothing yet. When something happens, you’ll see it here.</p>';
+}
+async function load() {
+  const { data, error } = await sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(60);
+  if (error) { $('list').innerHTML = '<p class="err">Couldn’t load your notifications. Check your signal and try again.</p>'; return; }
+  rows = data; draw(); refreshBadge();
+}
+$('list').onclick = async e => {
+  const a = e.target.closest('.nt'); if (!a) return;
+  e.preventDefault();
+  const id = +a.dataset.id, r = rows.find(x => x.id === id);
+  if (r && !r.read_at) await Promise.race([sb.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id), new Promise(res => setTimeout(res, 600))]);
+  location.href = a.getAttribute('href');
+};
+$('all').onclick = async () => {
+  await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null);
+  load();
+};
+guard().then(p => { if (p) load(); });
+</script>
+</body>
+</html>

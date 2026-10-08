@@ -20,6 +20,10 @@
   <section class="card"><b>Text size</b>
     <div class="seg" id="size"><button data-v="normal">Normal</button><button data-v="large">Large</button></div>
   </section>
+  <section class="card"><div class="row"><b>Notifications on this phone</b><span class="chip" id="nstate"></span></div>
+    <p class="note" id="nnote"></p>
+    <div class="btns"><button class="btn" id="non" hidden>Turn on</button><button class="btn ghost" id="noff" hidden>Turn off</button><a class="btn" id="ninst" href="install.html" hidden>Add to home screen</a></div>
+  </section>
   <section class="card"><b>Your account</b>
     <p class="muted" id="who">Signed in</p>
     <div class="btns"><button class="btn ghost" id="out">Sign out</button></div>
@@ -32,6 +36,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/data.js"></script>
 <script src="js/db.js"></script>
+<script src="js/push.js"></script>
 <script>
 const root = document.documentElement;
 const get = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -41,6 +46,23 @@ const mark = v => box.querySelectorAll('button').forEach(b => b.setAttribute('ar
 mark(get('fh.size') || 'normal');
 box.onclick = e => { const v = e.target.dataset.v; if (!v) return; put('fh.size', v); if (v === 'large') root.dataset.size = 'large'; else delete root.dataset.size; mark(v); };
 document.getElementById('ver').textContent = 'v' + VERSION;
+const N = id => document.getElementById(id);
+async function drawPush() {
+  ['non', 'noff', 'ninst'].forEach(id => N(id).hidden = true);
+  if (pushNeedsInstall()) { N('nstate').textContent = 'Off'; N('nnote').textContent = 'On iPhone, notifications work once Flawed Hero is on your home screen.'; N('ninst').hidden = false; return; }
+  if (!pushSupported()) { N('nstate').textContent = 'Not available'; N('nnote').textContent = 'This browser can\u2019t show notifications. You\u2019ll still see them inside the app.'; return; }
+  if (Notification.permission === 'denied') { N('nstate').textContent = 'Blocked'; N('nnote').textContent = 'Notifications are blocked for Flawed Hero. Allow them in your phone\u2019s settings, then come back here.'; return; }
+  const on = !!(await currentSub()) && Notification.permission === 'granted';
+  N('nstate').textContent = on ? 'On' : 'Off';
+  N('nnote').textContent = on ? 'You\u2019ll get a buzz on this phone when something needs you. They also always appear in the app under the bell.' : 'Get a buzz on this phone when something happens. They also always appear in the app under the bell.';
+  N(on ? 'noff' : 'non').hidden = false;
+}
+N('non').onclick = async () => {
+  N('non').disabled = true; const r = await enablePush(); N('non').disabled = false;
+  if (r === 'error') N('nnote').textContent = 'That didn\u2019t work. Check your signal and try again.'; else drawPush();
+};
+N('noff').onclick = async () => { N('noff').disabled = true; await disablePush(); N('noff').disabled = false; drawPush(); };
+drawPush();
 currentUser().then(u => { if (u) document.getElementById('who').textContent = 'Signed in as ' + u.email; });
 document.getElementById('out').onclick = async () => { await sb.auth.signOut(); location.replace('login.html'); };
 document.getElementById('upd').onclick = async () => {

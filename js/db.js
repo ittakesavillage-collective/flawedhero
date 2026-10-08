@@ -29,5 +29,25 @@ async function guard(opts) {
   if (!p || p.status !== 'approved') { location.replace('login.html?wait=' + (p && p.status === 'blocked' ? 'blocked' : '1')); return null; }
   if (opts.admin && !isAdmin(p)) { location.replace('./'); return null; }
   if (opts.staff && !isStaff(p)) { location.replace('./'); return null; }
+  afterGuard();
   return p;
+}
+
+// ---- Notifications: unread count, phone icon badge, and "opening a page clears its dot" ----
+const PAGE_TILE = { 'profile.html': 'profile', 'cabinet.html': 'cabinet', 'mycharities.html': 'charities', 'network.html': 'network',
+  'board.html': 'board', 'diary.html': 'diary', 'queue.html': 'queue', 'movement.html': 'movement', 'shop.html': 'mech', 'sponsors.html': 'sponsors', 'contacts.html': 'contacts' };
+async function unreadCount() {
+  const { count } = await sb.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null);
+  return count || 0;
+}
+function setAppBadge(n) {
+  try { if (navigator.setAppBadge) { if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge(); } } catch (e) {}
+}
+async function refreshBadge() { const n = await unreadCount(); setAppBadge(n); return n; }
+async function afterGuard() {
+  try {
+    const tile = PAGE_TILE[location.pathname.split('/').pop()];
+    if (tile) await sb.from('notifications').update({ read_at: new Date().toISOString() }).eq('tile', tile).is('read_at', null);
+    refreshBadge();
+  } catch (e) {}
 }

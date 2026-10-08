@@ -22,6 +22,7 @@
 <header class="bar"><div class="bar-in">
   <a class="brand" href="./"><img src="icons/icon-192.png" alt="" width="38" height="38"><span>Flawed Hero</span></a>
   <!-- ! = admin and super user (Phil); + = everyone (the development queue). -->
+  <a class="ib" id="bell" href="notifications.html" aria-label="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.500 2h-15zM10 21h4"/></svg><span class="dot" id="bdot" hidden></span></a>
   <a class="ib admin" id="adm" href="admin.html" aria-label="Admin" hidden>!<span class="dot" id="dot" hidden></span></a>
   <a class="ib plus" id="plus" href="queue.html" aria-label="Development queue and suggestions" hidden>+</a>
   <a class="ib" href="settings.html" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a>
@@ -48,26 +49,42 @@ let seen = false; try { seen = sessionStorage.getItem('fh.splash') === '1'; sess
 if (seen) splash.remove(); else setTimeout(() => { splash.classList.add('out'); setTimeout(() => splash.remove(), 450); }, 3000);
 
 document.getElementById('grid').innerHTML = TILES.map((t, i) =>
-  '<a class="tile' + (i === 0 ? ' first' : '') + '" href="' + (t.href || 'soon.html?p=' + t.id) + '">' + svg(t.id) + '<b>' + t.name + '</b></a>').join('');
+  '<a class="tile' + (i === 0 ? ' first' : '') + '" data-tile="' + t.id + '" href="' + (t.href || 'soon.html?p=' + t.id) + '">' + svg(t.id) + '<b>' + t.name + '</b><span class="tdot" hidden></span></a>').join('');
 document.getElementById('ver').textContent = 'v' + VERSION;
 
-// Everyone must be signed in and approved; admin gets !, everyone else gets +
-guard().then(async p => {
-  if (!p) return;
-  // Admin (Michael) and super user (Phil) both get the ! (members to approve, queue, overview)
-  if (isStaff(p)) {
-    document.getElementById('adm').hidden = false;
-    const { count } = await sb.from('profiles').select('user_id', { count: 'exact', head: true }).eq('status', 'pending');
-    const { count: cc } = await sb.from('results').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-    const { count: hc } = await sb.from('charities').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-    const { count: dc } = await sb.from('diary_events').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-    const { count: pc } = await sb.from('posts').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-    let n = (count || 0) + (cc || 0) + (hc || 0) + (dc || 0) + (pc || 0);
-    if (p.role === 'super') { const { count: ec } = await sb.from('marathon_entries').select('user_id', { count: 'exact', head: true }).eq('status', 'pending'); n += ec || 0; }
-    if (isAdmin(p)) { const { count: rc } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'suggested').eq('is_private', false); n += rc || 0; }
-    if (n) { const d = document.getElementById('dot'); d.textContent = n; d.hidden = false; }
-  }
-  document.getElementById('plus').hidden = false; // everyone sees the + queue
+// Everyone must be signed in and approved; staff get the !, everyone gets the + and the bell
+let meP = null;
+async function staffDot(p) {
+  if (!isStaff(p)) return;
+  document.getElementById('adm').hidden = false;
+  const c = t => sb.from(t).select('*', { count: 'exact', head: true }).eq('status', 'pending').then(r => r.count || 0);
+  const all = await Promise.all([c('profiles'), c('results'), c('charities'), c('diary_events'), c('posts')]);
+  let n = all.reduce((x, y) => x + y, 0);
+  if (p.role === 'super') n += await c('marathon_entries');
+  if (isAdmin(p)) { const { count: rc } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'suggested').eq('is_private', false); n += rc || 0; }
+  const d = document.getElementById('dot'); d.textContent = n; d.hidden = !n;
+}
+// Bell number, a dot on each tile with something new, the + dot, and the badge on the phone's app icon
+async function refreshHome() {
+  const { data } = await sb.from('notifications').select('id, tile').is('read_at', null).limit(500);
+  const rows = data || [], per = {};
+  rows.forEach(r => { if (r.tile) per[r.tile] = (per[r.tile] || 0) + 1; });
+  document.querySelectorAll('.tile').forEach(t => { const n = per[t.dataset.tile] || 0, d = t.querySelector('.tdot'); d.textContent = n; d.hidden = !n; });
+  const bd = document.getElementById('bdot'); bd.textContent = rows.length > 99 ? '99+' : rows.length; bd.hidden = !rows.length;
+  const q = per.queue || 0, plus = document.getElementById('plus');
+  plus.querySelector('.dot') && plus.querySelector('.dot').remove();
+  if (q) plus.insertAdjacentHTML('beforeend', '<span class="dot">' + q + '</span>');
+  setAppBadge(rows.length);
+  if (meP) staffDot(meP);
+}
+guard().then(p => {
+  if (!p) return; meP = p;
+  document.getElementById('plus').hidden = false;
+  refreshHome();
+  // live while the app is open: new notifications arrive instantly; also re-check when you come back to it
+  sb.channel('fh-n-' + p.user_id).on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + p.user_id }, refreshHome).subscribe();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshHome(); });
+  setInterval(() => { if (!document.hidden) refreshHome(); }, 60000);
 });
 
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
