@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Message Board · Flawed Hero</title>
+<style>
+.post .body{white-space:pre-wrap;font-size:1.05em}
+.post.team{border-color:var(--bronze);background:linear-gradient(160deg,#2A1814,var(--surface) 60%)}
+.who{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Message Board</h1>
+</div></header>
+<main class="wrap">
+  <section class="card">
+    <button class="btn" id="open">+ Write a message</button>
+    <form id="form" hidden style="display:flex;flex-direction:column;gap:12px">
+      <label class="f">Your message<textarea id="body" maxlength="1000" required style="min-height:110px"></textarea></label>
+      <p class="note" id="appnote">Messages from members are read by Michael or Phil before they go up.</p>
+      <div class="btns"><button class="btn" id="send">Post message</button><button type="button" class="btn ghost" id="cancel">Cancel</button></div>
+      <p class="err" id="msg" hidden></p>
+    </form>
+  </section>
+  <div id="list" style="display:flex;flex-direction:column;gap:12px"><p class="ph">Loading...</p></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let me = null;
+
+async function load() {
+  const { data, error } = await sb.from('posts').select('*').order('created_at', { ascending: false });
+  if (error) { $('list').innerHTML = '<p class="err">Couldn’t load the board. Check your signal and try again.</p>'; return; }
+  const rows = data.filter(x => x.status !== 'rejected' || x.created_by === me.user_id);
+  $('list').innerHTML = rows.length ? rows.map(x =>
+    '<article class="card post' + (x.is_team ? ' team' : '') + '" data-id="' + x.id + '"><div class="row"><div class="who"><b>' + esc(x.author_name || 'A hero') + '</b>' +
+    (x.is_team ? '<span class="badge">Flawed Hero team</span>' : '') +
+    (x.status === 'pending' ? '<span class="chip s-suggested">Waiting for approval</span>' : x.status === 'rejected' ? '<span class="chip s-denied">Not approved</span>' : '') +
+    '</div><small class="muted">' + ago(x.created_at) + '</small></div>' +
+    '<p class="body">' + esc(x.body) + '</p>' +
+    ((isStaff(me) || x.created_by === me.user_id) ? '<div class="btns"><button class="btn ghost" data-del style="min-height:36px">Delete</button></div>' : '') + '</article>').join('')
+    : '<p class="ph">No messages yet.</p>';
+}
+$('list').onclick = async e => {
+  if (!e.target.matches('[data-del]')) return;
+  if (!confirm('Delete this message?')) return;
+  const { error } = await sb.from('posts').delete().eq('id', +e.target.closest('.post').dataset.id);
+  if (error) return alert(error.message);
+  load();
+};
+$('open').onclick = () => { $('form').hidden = false; $('open').hidden = true; $('body').focus(); };
+$('cancel').onclick = () => { $('form').hidden = true; $('open').hidden = false; };
+$('form').onsubmit = async e => {
+  e.preventDefault(); $('send').disabled = true; $('msg').hidden = true;
+  const { error } = await sb.from('posts').insert({ body: $('body').value.trim() });
+  $('send').disabled = false;
+  if (error) { $('msg').textContent = 'Couldn’t post: ' + error.message; $('msg').hidden = false; return; }
+  $('form').reset(); $('form').hidden = true; $('open').hidden = false; load();
+};
+guard().then(p => { if (!p) return; me = p; if (isStaff(p)) $('appnote').textContent = 'As Michael or Phil, your messages go straight up, marked as the Flawed Hero team.'; load(); });
+</script>
+</body>
+</html>

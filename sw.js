@@ -1,6 +1,6 @@
 // Network-first: always fetch the latest when online (updates are automatic); fall back to cache offline.
-const CACHE = 'flawedhero-v0.2.1';
-const SHELL = ['./', 'index.html', 'login.html', 'soon.html', 'profile.html', 'queue.html', 'settings.html', 'about.html', 'install.html', 'admin.html', 'contacts.html', 'cabinet.html', 'js/medals.js', 'js/charities.js', 'mycharities.html', 'network.html', 'diary.html',
+const CACHE = 'flawedhero-v0.2.2';
+const SHELL = ['./', 'index.html', 'login.html', 'soon.html', 'profile.html', 'queue.html', 'settings.html', 'about.html', 'install.html', 'admin.html', 'contacts.html', 'cabinet.html', 'js/medals.js', 'js/charities.js', 'mycharities.html', 'network.html', 'diary.html', 'board.html',
   'css/app.css', 'js/data.js', 'js/db.js', 'icons/icon-192.png', 'assets/splash.jpg', 'assets/collective-logo.webp'];
 
 self.addEventListener('install', e => {

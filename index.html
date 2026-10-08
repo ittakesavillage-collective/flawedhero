@@ -61,7 +61,8 @@ guard().then(async p => {
     const { count: cc } = await sb.from('results').select('id', { count: 'exact', head: true }).eq('status', 'pending');
     const { count: hc } = await sb.from('charities').select('id', { count: 'exact', head: true }).eq('status', 'pending');
     const { count: dc } = await sb.from('diary_events').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-    let n = (count || 0) + (cc || 0) + (hc || 0) + (dc || 0);
+    const { count: pc } = await sb.from('posts').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+    let n = (count || 0) + (cc || 0) + (hc || 0) + (dc || 0) + (pc || 0);
     if (p.role === 'super') { const { count: ec } = await sb.from('marathon_entries').select('user_id', { count: 'exact', head: true }).eq('status', 'pending'); n += ec || 0; }
     if (isAdmin(p)) { const { count: rc } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'suggested').eq('is_private', false); n += rc || 0; }
     if (n) { const d = document.getElementById('dot'); d.textContent = n; d.hidden = false; }

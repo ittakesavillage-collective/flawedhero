@@ -28,6 +28,8 @@
     <h3 style="font-size:18px;margin-bottom:8px">Marathon bookings</h3>
     <p class="note" id="enote" style="margin-bottom:8px"></p>
     <div id="elist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
+    <h3 style="font-size:18px;margin-bottom:8px">Message board posts</h3>
+    <div id="plist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
     <h3 style="font-size:18px;margin-bottom:8px">Diary events</h3>
     <div id="dlist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
     <h3 style="font-size:18px;margin-bottom:8px">New charities</h3>
@@ -83,7 +85,7 @@ async function loadMembers() {
   members = data;
   const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('*')]);
   events = ev.data || []; results = rs.data || [];
-  drawMembers(); drawClaims(); loadCharities(); loadDiary();
+  drawMembers(); drawClaims(); loadCharities(); loadDiary(); loadPosts();
 }
 const evName = id => (events.find(e => e.id === id) || { name: id }).name;
 function drawMembers() {
@@ -104,8 +106,26 @@ function drawMembers() {
       (isAdmin(me) && m.user_id !== me.user_id ? '<select data-role aria-label="Role">' + ['member', 'super', 'admin'].map(r => '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>').join('') + '</select>' : '') +
     '</div></article>').join('') : '<p class="ph">Nobody here.</p>';
 }
-let pendingClaims = 0, pendingCharities = 0, pendingDiary = 0, pendingEntries = 0, charities = [];
-const tabCount = () => { const n = pendingClaims + pendingCharities + pendingDiary + pendingEntries; $('ctab').textContent = n ? 'Approvals (' + n + ')' : 'Approvals'; };
+let pendingClaims = 0, pendingCharities = 0, pendingDiary = 0, pendingEntries = 0, pendingPosts = 0, charities = [];
+const tabCount = () => { const n = pendingClaims + pendingCharities + pendingDiary + pendingEntries + pendingPosts; $('ctab').textContent = n ? 'Approvals (' + n + ')' : 'Approvals'; };
+
+// Message board posts from members (staff approve)
+async function loadPosts() {
+  const { data, error } = await sb.from('posts').select('*').eq('status', 'pending').order('created_at');
+  if (error) { $('plist').innerHTML = '<p class="err">' + esc(error.message) + '</p>'; return; }
+  pendingPosts = data.length; tabCount();
+  $('plist').innerHTML = data.length ? data.map(x =>
+    '<article class="card mem" data-pid="' + x.id + '"><div class="row"><b>' + esc(x.author_name || 'A member') + '</b><span class="chip">' + ago(x.created_at) + '</span></div>' +
+    '<p style="white-space:pre-wrap">' + esc(x.body) + '</p><div class="adm"><button class="btn" data-pok>Approve</button><button class="btn ghost" data-pno>Reject</button></div></article>').join('')
+    : '<p class="ph">No messages waiting.</p>';
+}
+$('plist').onclick = async e => {
+  const ok = e.target.matches('[data-pok]'), no = e.target.matches('[data-pno]'); if (!ok && !no) return;
+  e.target.disabled = true;
+  const { error } = await sb.from('posts').update({ status: ok ? 'approved' : 'rejected', decided_by: me.user_id, decided_at: new Date().toISOString() }).eq('id', +e.target.closest('.card').dataset.pid);
+  if (error) { alert(error.message); e.target.disabled = false; return; }
+  loadPosts();
+};
 
 // Diary events (staff approve) and marathon bookings (ONLY Phil, the super user, can approve those)
 async function loadDiary() {

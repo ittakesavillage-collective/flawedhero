@@ -1,5 +1,5 @@
 // Flawed Hero content. Bump VERSION here AND the CACHE name in sw.js together.
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 
 // 24px line icons, drawn with currentColor
 const ICONS = {
@@ -20,7 +20,7 @@ const svg = (k, cls) => '<svg viewBox="0 0 24 24" aria-hidden="true"' + (cls ? '
 // Home grid: 2 columns x 5 rows, in this order. My Profile is the only live page for now.
 const TILES = [
   {id:'profile', name:'My Profile', href:'profile.html'},
-  {id:'board', name:'Message Board'},
+  {id:'board', name:'Message Board', href:'board.html'},
   {id:'cabinet', name:'Hero’s Cabinet', href:'cabinet.html'},
   {id:'diary', name:'Diary', href:'diary.html'},
   {id:'charities', name:'My Charities', href:'mycharities.html'},
