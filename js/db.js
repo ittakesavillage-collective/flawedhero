@@ -1,7 +1,7 @@
 // Supabase connection. The publishable key is designed to be public; Row Level Security
 // (supabase/schema.sql) is what protects the data.
-const SB_URL = '__SB_URL__';
-const SB_KEY = '__SB_KEY__';
+const SB_URL = 'https://cewxfmputkmrkymfvfsq.supabase.co';
+const SB_KEY = 'sb_publishable__piZTnhB-t8-yKL-ymKdRA_kyHL241l';
 const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, { auth: { storageKey: 'fh.auth', persistSession: true, autoRefreshToken: true } }) : null;
 
 // Current signed-in user + their profile row (null if signed out). Redirects are the caller's job.

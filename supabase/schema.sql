@@ -76,6 +76,12 @@ revoke all on function public.set_member(uuid, text, text) from public, anon;
 grant execute on function public.set_member(uuid, text, text) to authenticated;
 revoke all on function public.handle_new_user() from public, anon, authenticated;
 revoke all on function public.request_defaults() from public, anon, authenticated;
+revoke all on function public.my_status() from public, anon;
+revoke all on function public.my_role() from public, anon;
+revoke all on function public.is_approved() from public, anon;
+revoke all on function public.is_staff() from public, anon;
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.my_status(), public.my_role(), public.is_approved(), public.is_staff(), public.is_admin() to authenticated;
 
 -- Row Level Security
 alter table public.profiles enable row level security;
