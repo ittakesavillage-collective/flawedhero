@@ -32,9 +32,15 @@
 <main class="wrap">
   <a class="banner" id="inst" href="install.html" hidden>
     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
-    <b>Add Flawed Hero to your home screen</b>
+    <b id="instT">Add Flawed Hero to your home screen</b>
     <button class="x" id="instx" aria-label="Hide">&times;</button>
   </a>
+  <section class="card" id="optin" hidden style="border-color:var(--gold)">
+    <b>Stay in the loop, hero</b>
+    <p class="muted">Get a buzz when something happens: your medals, replies to your ideas, news from the team. We won't spam you.</p>
+    <div class="btns"><button class="btn" id="optYes">Yes, notify me</button><button class="btn ghost" id="optNo">Not now</button></div>
+    <p class="note" id="optMsg" hidden></p>
+  </section>
   <nav class="grid" id="grid" aria-label="Flawed Hero"></nav>
   <p class="ver" id="ver"></p>
 </main>
@@ -42,6 +48,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/data.js"></script>
 <script src="js/db.js"></script>
+<script src="js/push.js"></script>
 <script>
 // Splash: the poster holds for 3 seconds, once each time the app is opened
 const splash = document.getElementById('splash');
@@ -81,11 +88,37 @@ guard().then(p => {
   if (!p) return; meP = p;
   document.getElementById('plus').hidden = false;
   refreshHome();
+  offerNotifications();
   // live while the app is open: new notifications arrive instantly; also re-check when you come back to it
   sb.channel('fh-n-' + p.user_id).on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + p.user_id }, refreshHome).subscribe();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshHome(); });
   setInterval(() => { if (!document.hidden) refreshHome(); }, 60000);
 });
+
+// ---- Ask about notifications (needs a tap), and quietly re-connect if permission was already given ----
+const OPT = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, put: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
+async function offerNotifications() {
+  const box = document.getElementById('optin');
+  if (pushNeedsInstall()) { document.getElementById('instT').textContent = 'Add Flawed Hero to your home screen to get notifications'; return; }
+  if (!pushSupported() || Notification.permission === 'denied') return;
+  const sub = await currentSub();
+  if (Notification.permission === 'granted') { if (!sub) enablePush(); return; }   // permission already given: just reconnect this phone
+  const asked = +(OPT.get('fh.optAsked') || 0), next = +(OPT.get('fh.optNext') || 0);
+  if (asked >= 4 || Date.now() < next) return;
+  box.hidden = false;
+}
+document.getElementById('optYes').onclick = async () => {
+  const b = document.getElementById('optYes'); b.disabled = true;
+  const r = await enablePush();
+  const m = document.getElementById('optMsg'); m.hidden = false;
+  m.textContent = r === 'on' ? 'Brilliant. You\u2019re all set.' : r === 'denied' ? 'No problem. You can switch them on later in Settings.' : 'That didn\u2019t work this time. You can try again in Settings.';
+  OPT.put('fh.optAsked', '9');
+  setTimeout(() => { document.getElementById('optin').hidden = true; }, 2200);
+};
+document.getElementById('optNo').onclick = () => {
+  OPT.put('fh.optAsked', String(+(OPT.get('fh.optAsked') || 0) + 1)); OPT.put('fh.optNext', String(Date.now() + 7 * 864e5));
+  document.getElementById('optin').hidden = true;
+};
 
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 let hid = false; try { hid = localStorage.getItem('fh.instHidden') === '1'; } catch (e) {}
