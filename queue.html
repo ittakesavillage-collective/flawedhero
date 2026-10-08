@@ -26,8 +26,7 @@
       <p class="note" id="msg" hidden></p>
     </form>
   </section>
-  <a class="btn alt" id="mem" href="admin.html#members" hidden>Approve new members</a>
-  <p class="note">This is what we're working on. Every suggestion is read, and we decide what goes in and in what order.</p>
+    <p class="note">This is what we're working on. Every suggestion is read, and we decide what goes in and in what order.</p>
   <div id="list" style="display:flex;flex-direction:column;gap:12px"></div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -52,7 +51,7 @@ async function load() {
     (r.reply ? '<p class="reply">' + esc(r.reply) + '</p>' : '') + '</article>').join('');
 }
 
-guard().then(p => { if (!p) return; me = p; if (isStaff(p)) $('mem').hidden = false; load(); });
+guard().then(p => { if (!p) return; me = p; load(); });
 
 $('open').onclick = () => { $('form').hidden = false; $('open').hidden = true; $('title').focus(); };
 $('cancel').onclick = () => { $('form').hidden = true; $('open').hidden = false; };

@@ -17,11 +17,16 @@
   <h1>Admin</h1>
 </div></header>
 <main class="wrap">
-  <div class="seg" id="tabs"><button data-v="members" aria-pressed="true">Members</button><button data-v="queue" aria-pressed="false" id="qtab">Queue</button></div>
+  <div class="seg" id="tabs"><button data-v="members" aria-pressed="true">Members</button><button data-v="queue" aria-pressed="false" id="qtab">Queue</button><button data-v="info" aria-pressed="false">Overview</button></div>
 
   <section id="members">
     <div class="chips" style="display:flex;gap:6px;margin-bottom:12px" id="mf"></div>
     <div id="mlist" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <section id="info" hidden>
+    <div class="card"><b>Management information</b><div id="stats" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
+    <p class="note">More reports will be added here as we work out what you need.</p></div>
   </section>
 
   <section id="queue" hidden>
@@ -47,13 +52,14 @@ const ROLE_LABEL = { admin: 'Admin', super: 'Super user', member: 'Member' };
 // Michael (admin) manages everything. Super users (Phil) can approve members but not change roles or the queue.
 guard({ staff: true }).then(p => {
   if (!p) return; me = p;
-  if (!isAdmin(p)) { $('qtab').hidden = true; }
-  tab(location.hash === '#queue' && isAdmin(p) ? 'queue' : 'members');
-  loadMembers(); if (isAdmin(p)) loadQueue();
+  // Super user (Phil) sees the queue read-only; private items, roles and queue changes stay with the admin
+  if (!isAdmin(p)) $('idea').hidden = true;
+  tab(location.hash === '#queue' ? 'queue' : 'members');
+  loadMembers(); loadQueue(); loadStats();
 });
 function tab(v) {
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
-  $('members').hidden = v !== 'members'; $('queue').hidden = v !== 'queue';
+  $('members').hidden = v !== 'members'; $('queue').hidden = v !== 'queue'; $('info').hidden = v !== 'info';
 }
 $('tabs').onclick = e => { if (e.target.dataset.v) tab(e.target.dataset.v); };
 
@@ -97,6 +103,18 @@ $('mlist').onchange = async e => {
   m.role = e.target.value; drawMembers();
 };
 
+/* ---------- Overview (management information, first cut) ---------- */
+async function loadStats() {
+  const cnt = async (t, f) => { let q = sb.from(t).select('*', { count: 'exact', head: true }); if (f) q = f(q); const { count } = await q; return count || 0; };
+  const pub = q => q.eq('is_private', false);
+  const [mAll, mOk, mPend, mBlock, rAll, rOpen, rDone] = await Promise.all([
+    cnt('profiles'), cnt('profiles', q => q.eq('status', 'approved')), cnt('profiles', q => q.eq('status', 'pending')), cnt('profiles', q => q.eq('status', 'blocked')),
+    cnt('requests', pub), cnt('requests', q => pub(q).in('status', ['suggested', 'accepted', 'planned', 'building'])), cnt('requests', q => pub(q).eq('status', 'done'))]);
+  const box = (n, l) => '<div class="card" style="padding:12px"><b style="font-family:var(--head);font-size:30px;color:var(--gold)">' + n + '</b><small class="muted">' + l + '</small></div>';
+  $('stats').innerHTML = box(mAll, 'Registered') + box(mOk, 'Approved') + box(mPend, 'Waiting for approval') + box(mBlock, 'Blocked') +
+    box(rAll, 'Suggestions') + box(rOpen, 'Still open') + box(rDone, 'Done');
+}
+
 /* ---------- Development queue ---------- */
 // Your own ideas go straight in as Accepted (members' suggestions arrive as Suggested)
 $('idea').onsubmit = async e => {
@@ -119,11 +137,11 @@ function drawQueue() {
     '<article class="card req" data-id="' + r.id + '"><div class="row"><b>' + esc(r.title) + '</b>' + (r.is_private ? '<span class="chip" style="background:var(--red);color:#fff">Private</span>' : '') + '<span class="chip s-' + r.status + '">' + STATUS[r.status] + '</span></div>' +
     (r.body ? '<p class="muted">' + esc(r.body) + '</p>' : '') +
     '<small class="muted">' + esc(r.author_name) + ' &middot; ' + ago(r.created_at) + '</small>' +
-    '<div class="adm"><select data-f="status" aria-label="Status">' + Object.keys(STATUS).map(s => '<option value="' + s + '"' + (s === r.status ? ' selected' : '') + '>' + STATUS[s] + '</option>').join('') + '</select>' +
+    (isAdmin(me) ? '<div class="adm"><select data-f="status" aria-label="Status">' + Object.keys(STATUS).map(s => '<option value="' + s + '"' + (s === r.status ? ' selected' : '') + '>' + STATUS[s] + '</option>').join('') + '</select>' +
     '<input type="number" min="1" max="99" data-f="priority" placeholder="#" value="' + (r.priority || '') + '" aria-label="Priority order">' +
     '<input type="text" data-f="reply" placeholder="Reply to the member (optional)" maxlength="300" value="' + esc(r.reply || '') + '" style="flex-basis:100%;min-height:40px">' +
     '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-f="is_private"' + (r.is_private ? ' checked' : '') + ' style="width:20px;height:20px"> Private</label>' +
-    '<button class="btn" data-save>Save</button><button class="btn ghost" data-del>Delete</button></div></article>').join('') : '<p class="ph">No suggestions yet.</p>';
+    '<button class="btn" data-save>Save</button><button class="btn ghost" data-del>Delete</button></div>' : '') + '</article>').join('') : '<p class="ph">No suggestions yet.</p>';
 }
 $('qlist').onclick = async e => {
   const card = e.target.closest('.card'); if (!card) return;
