@@ -8,6 +8,11 @@ const TIERS = [
 ];
 const tierFor = n => { let t = null; TIERS.forEach(x => { if (n >= x.min) t = x; }); return t; };
 
+// Phil's own medal designs go here, one image per event+year (put the file in assets/medals/ and add a line):
+//   'fh-marathon:2025': 'assets/medals/fh-marathon-2025.png'
+// A design replaces the drawn medal. Years not yet completed show the design as a dark shadow.
+const MEDAL_ART = {};
+
 let _mid = 0;
 // A medal on a ribbon. tier = null draws the empty, shadowy placeholder.
 function medalSvg(tier) {
@@ -24,8 +29,10 @@ function medalSvg(tier) {
       '<path d="M43 98V71h16M43 83h12" fill="none" stroke="#7A5A10" stroke-opacity=".55" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>' : '') +
     '</svg>';
 }
-function slot(tier, label, sub) {
-  return '<div class="slot' + (tier ? '' : ' empty') + '"><div' + (tier ? ' class="shine"' : '') + '>' + medalSvg(tier) + '</div><b>' + esc(label) + '</b><small>' + esc(sub) + (tier ? ' &middot; ' + tier.name : '') + '</small></div>';
+function slot(tier, label, sub, art) {
+  const pic = art ? '<img class="art" src="' + esc(art) + '" alt="">' : medalSvg(tier);
+  return '<div class="slot' + (tier ? '' : ' empty') + '"><div' + (tier ? ' class="shine"' : '') + '>' + pic + '</div><b>' + esc(label) + '</b>' +
+    (sub || tier ? '<small>' + esc(sub || '') + (sub && tier ? ' &middot; ' : '') + (tier ? tier.name : '') + '</small>' : '') + '</div>';
 }
 function progress(n) {
   const next = TIERS.find(t => n < t.min);

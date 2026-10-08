@@ -19,6 +19,12 @@
 .slot b{font-family:var(--head);font-weight:500;letter-spacing:.5px;text-transform:uppercase;font-size:.95em;line-height:1.2}
 .slot small{color:var(--muted);line-height:1.2}
 .slot.empty b{color:var(--muted)}
+.slot img.art{width:min(92px,24vw);height:auto;display:block}
+.slot.empty img.art{filter:grayscale(1) brightness(.25)}
+.mini{display:flex;flex-wrap:wrap;gap:6px 4px}
+.mini .slot{width:23%;padding-bottom:4px}
+.mini .slot svg,.mini .slot img.art{width:100%;max-width:62px}
+.mini .slot b{font-size:.8em;font-weight:400}
 .slot.empty svg{opacity:.55}
 .shine{animation:shine 3.2s ease-in-out infinite}
 @keyframes shine{0%,100%{filter:drop-shadow(0 0 2px rgb(255 255 255 / .15))}50%{filter:drop-shadow(0 0 9px rgb(255 255 255 / .55))}}
@@ -36,11 +42,7 @@
   <h1>Hero's Cabinet</h1>
 </div></header>
 <main class="wrap">
-  <section class="card">
-    <b id="who">Your medals</b>
-    <p class="note">Every official event you complete earns a medal. Do more, and your medals get better.</p>
-    <div class="ladder" id="ladder"></div>
-  </section>
+  <h2 id="who" style="font-size:28px">Your medals</h2>
 
   <section class="card">
     <div class="row"><h2 style="font-size:20px">Flawed Hero Marathon</h2><span class="chip" id="mcount"></span></div>
@@ -48,11 +50,15 @@
     <div id="mprog"></div>
   </section>
 
+  <h2 style="font-size:20px">Other events</h2>
+  <div id="others" style="display:flex;flex-direction:column;gap:12px"></div>
+
   <section class="card">
-    <h2 style="font-size:20px">Other events</h2>
-    <div class="shelf two" id="others"></div>
+    <b>How it works</b>
+    <p class="note">Every official event you complete earns a medal. Do more, and your medals get better.</p>
+    <div class="ladder" id="ladder"></div>
+    <p class="note">Medals are added by the Flawed Hero team after each event.</p>
   </section>
-  <p class="note">Medals are added by the Flawed Hero team after each event.</p>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/data.js"></script>
@@ -64,23 +70,26 @@ $('ladder').innerHTML = TIERS.map(t => '<span><i style="background:linear-gradie
 
 guard().then(async p => {
   if (!p) return;
-  $('who').textContent = (p.name ? p.name.split(' ')[0] + '’s' : 'Your') + ' medals';
+  $('who').textContent = (p.name ? p.name.split(' ')[0] + '’s' : 'Your') + ' Medals';
   const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('event_id, year').eq('user_id', p.user_id)]);
   if (ev.error || rs.error) { $('marathons').innerHTML = '<p class="err">Couldn’t load your cabinet. Check your signal and try again.</p>'; return; }
   const mine = rs.data;
+  const art = (e, y) => MEDAL_ART[e + ':' + y];
 
-  // Flawed Hero Marathon: one slot per year (2024, 2025, 2026, plus any later year they hold). Colour = their marathon count.
+  // Flawed Hero Marathon: one slot per year. Years gone by that weren't run stay as quiet shadows.
   const years = new Set([2024, 2025, 2026]); mine.filter(r => r.event_id === 'fh-marathon').forEach(r => years.add(r.year));
   const done = new Set(mine.filter(r => r.event_id === 'fh-marathon').map(r => r.year));
   const n = done.size, tier = tierFor(n);
-  $('marathons').innerHTML = [...years].sort().map(y => slot(done.has(y) ? tier : null, y, done.has(y) ? 'Finisher' : 'Not yet')).join('');
+  $('marathons').innerHTML = [...years].sort().map(y => slot(done.has(y) ? tier : null, y, done.has(y) ? 'Finisher' : '', art('fh-marathon', y))).join('');
   $('mcount').textContent = n + (n === 1 ? ' finish' : ' finishes');
   $('mprog').innerHTML = progress(n);
 
-  // Other events: one medal each, colour = how many times completed
+  // Other events: one medal per time completed (ten 5Ks = ten medals), all in the colour for that count
   $('others').innerHTML = ev.data.filter(e => e.id !== 'fh-marathon').map(e => {
-    const c = mine.filter(r => r.event_id === e.id).length;
-    return slot(tierFor(c), e.name, c ? c + (c === 1 ? ' time' : ' times') : 'Not yet');
+    const got = mine.filter(r => r.event_id === e.id).sort((a, b) => a.year - b.year), c = got.length, t = tierFor(c);
+    const medals = c ? got.map(r => slot(t, r.year, '', art(e.id, r.year))).join('') : slot(null, '', '', null);
+    return '<section class="card"><div class="row"><h3 style="font-size:18px">' + esc(e.name) + '</h3><span class="chip">' + c + (c === 1 ? ' time' : ' times') + (t ? ' &middot; ' + t.name : '') + '</span></div>' +
+      '<div class="mini">' + medals + '</div>' + progress(c) + '</section>';
   }).join('');
 });
 </script>
