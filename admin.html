@@ -17,11 +17,15 @@
   <h1>Admin</h1>
 </div></header>
 <main class="wrap">
-  <div class="seg" id="tabs"><button data-v="members" aria-pressed="true">Members</button><button data-v="queue" aria-pressed="false" id="qtab">Queue</button><button data-v="info" aria-pressed="false">Overview</button></div>
+  <div class="seg" id="tabs"><button data-v="members" aria-pressed="true">Members</button><button data-v="claims" aria-pressed="false" id="ctab">Claims</button><button data-v="queue" aria-pressed="false" id="qtab">Queue</button><button data-v="info" aria-pressed="false">Overview</button></div>
 
   <section id="members">
     <div class="chips" style="display:flex;gap:6px;margin-bottom:12px" id="mf"></div>
     <div id="mlist" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <section id="claims" hidden>
+    <div id="clist" style="display:flex;flex-direction:column;gap:12px"></div>
   </section>
 
   <section id="info" hidden>
@@ -54,12 +58,12 @@ guard({ staff: true }).then(p => {
   if (!p) return; me = p;
   // Super user (Phil) sees the queue read-only; private items, roles and queue changes stay with the admin
   if (!isAdmin(p)) $('idea').hidden = true;
-  tab(location.hash === '#queue' ? 'queue' : 'members');
+  tab(location.hash === '#queue' ? 'queue' : location.hash === '#claims' ? 'claims' : 'members');
   loadMembers(); loadQueue(); loadStats();
 });
 function tab(v) {
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
-  $('members').hidden = v !== 'members'; $('queue').hidden = v !== 'queue'; $('info').hidden = v !== 'info';
+  $('members').hidden = v !== 'members'; $('queue').hidden = v !== 'queue'; $('info').hidden = v !== 'info'; $('claims').hidden = v !== 'claims';
 }
 $('tabs').onclick = e => { if (e.target.dataset.v) tab(e.target.dataset.v); };
 
@@ -70,7 +74,7 @@ async function loadMembers() {
   members = data;
   const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('*')]);
   events = ev.data || []; results = rs.data || [];
-  drawMembers();
+  drawMembers(); drawClaims();
 }
 const evName = id => (events.find(e => e.id === id) || { name: id }).name;
 function drawMembers() {
@@ -91,9 +95,28 @@ function drawMembers() {
       (isAdmin(me) && m.user_id !== me.user_id ? '<select data-role aria-label="Role">' + ['member', 'super', 'admin'].map(r => '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>').join('') + '</select>' : '') +
     '</div></article>').join('') : '<p class="ph">Nobody here.</p>';
 }
+// Claims: members say "I did this"; staff approve or reject
+function drawClaims() {
+  const pend = results.filter(r => r.status === 'pending').sort((x, y) => new Date(x.created_at) - new Date(y.created_at));
+  $('ctab').textContent = pend.length ? 'Claims (' + pend.length + ')' : 'Claims';
+  $('clist').innerHTML = pend.length ? pend.map(r => {
+    const m = members.find(x => x.user_id === r.user_id) || { name: '(unknown)' };
+    return '<article class="card mem" data-rid="' + r.id + '"><div class="row"><b>' + esc(m.name || m.email) + '</b><span class="chip">' + ago(r.created_at) + '</span></div>' +
+      '<p>' + esc(evName(r.event_id)) + ' ' + r.year + '</p>' + (r.note ? '<p class="muted">' + esc(r.note) + '</p>' : '') +
+      '<div class="adm"><button class="btn" data-ok>Approve</button><button class="btn ghost" data-no>Reject</button></div></article>';
+  }).join('') : '<p class="ph">No medal claims waiting.</p>';
+}
+$('clist').onclick = async e => {
+  const ok = e.target.matches('[data-ok]'), no = e.target.matches('[data-no]'); if (!ok && !no) return;
+  const id = +e.target.closest('.card').dataset.rid; e.target.disabled = true;
+  const { error } = await sb.from('results').update({ status: ok ? 'approved' : 'rejected', decided_by: me.user_id, decided_at: new Date().toISOString() }).eq('id', id);
+  if (error) { alert(error.message); e.target.disabled = false; return; }
+  results.find(r => r.id === id).status = ok ? 'approved' : 'rejected'; drawClaims(); drawMembers();
+};
+
 // Medals: staff (Michael, Phil) record completed events; the Hero's Cabinet fills in from these
 function medalsBlock(m) {
-  const mine = results.filter(r => r.user_id === m.user_id);
+  const mine = results.filter(r => r.user_id === m.user_id && r.status === 'approved');
   return '<div class="adm" style="flex-direction:column;align-items:stretch"><b style="font-size:.95em">Medals</b>' +
     '<div style="display:flex;flex-wrap:wrap;gap:6px">' + (mine.length ? mine.map(r => '<span class="chip">' + esc(evName(r.event_id)) + ' ' + r.year +
       ' <button data-rm="' + r.id + '" aria-label="Remove" style="background:none;border:0;color:inherit;cursor:pointer;font-size:1.1em;padding:0 0 0 4px">&times;</button></span>').join('') : '<small class="muted">None yet</small>') + '</div>' +

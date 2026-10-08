@@ -45,6 +45,18 @@
   <h2 id="who" style="font-size:28px">Your medals</h2>
 
   <section class="card">
+    <button class="btn" id="claimOpen">I did this: claim a medal</button>
+    <form id="claim" hidden style="display:flex;flex-direction:column;gap:12px">
+      <label class="f">Which event?<select id="cev"></select></label>
+      <label class="f">Which year?<input type="number" id="cyr" min="2000" max="2100" required></label>
+      <label class="f">Anything we should know? (optional)<input type="text" id="cnote" maxlength="200" placeholder="e.g. finish time, or who ran with you"></label>
+      <div class="btns"><button class="btn" id="csend">Send claim</button><button type="button" class="btn ghost" id="ccancel">Cancel</button></div>
+      <p class="note" id="cmsg" hidden></p>
+    </form>
+    <div id="cpend"></div>
+  </section>
+
+  <section class="card">
     <div class="row"><h2 style="font-size:20px">Flawed Hero Marathon</h2><span class="chip" id="mcount"></span></div>
     <div class="shelf three" id="marathons"></div>
     <div id="mprog"></div>
@@ -68,29 +80,63 @@
 const $ = id => document.getElementById(id);
 $('ladder').innerHTML = TIERS.map(t => '<span><i style="background:linear-gradient(135deg,' + t.hi + ',' + t.lo + ')"></i>' + t.name + ' &middot; ' + t.min + (t.min > 1 ? '+' : '') + '</span>').join('');
 
-guard().then(async p => {
-  if (!p) return;
-  $('who').textContent = (p.name ? p.name.split(' ')[0] + '’s' : 'Your') + ' Medals';
-  const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('event_id, year').eq('user_id', p.user_id)]);
-  if (ev.error || rs.error) { $('marathons').innerHTML = '<p class="err">Couldn’t load your cabinet. Check your signal and try again.</p>'; return; }
-  const mine = rs.data;
+let me = null, events = [];
+async function load() {
+  const p = me;
+  const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('id, event_id, year, status, note').eq('user_id', p.user_id)]);
+  if (ev.error || rs.error) { $('marathons').innerHTML = '<p class="err">Couldn\u2019t load your cabinet. Check your signal and try again.</p>'; return; }
+  events = ev.data;
+  const all = rs.data, mine = all.filter(r => r.status === 'approved'), pend = all.filter(r => r.status === 'pending'), rej = all.filter(r => r.status === 'rejected');
   const art = (e, y) => MEDAL_ART[e + ':' + y];
+  const evName = id => (events.find(e => e.id === id) || { name: id }).name;
 
-  // Flawed Hero Marathon: one slot per year. Years gone by that weren't run stay as quiet shadows.
-  const years = new Set([2024, 2025, 2026]); mine.filter(r => r.event_id === 'fh-marathon').forEach(r => years.add(r.year));
+  // Flawed Hero Marathon: one slot per year. Colour = how many finishes they have (approved only).
+  const years = new Set([2024, 2025, 2026]); all.filter(r => r.event_id === 'fh-marathon' && r.status !== 'rejected').forEach(r => years.add(r.year));
   const done = new Set(mine.filter(r => r.event_id === 'fh-marathon').map(r => r.year));
+  const waiting = new Set(pend.filter(r => r.event_id === 'fh-marathon').map(r => r.year));
   const n = done.size, tier = tierFor(n);
-  $('marathons').innerHTML = [...years].sort().map(y => slot(done.has(y) ? tier : null, y, done.has(y) ? 'Finisher' : '', art('fh-marathon', y))).join('');
+  $('marathons').innerHTML = [...years].sort().map(y => done.has(y) ? slot(tier, y, 'Finisher', art('fh-marathon', y)) :
+    waiting.has(y) ? '<div style="opacity:.7">' + slot(null, y, 'Waiting for approval', art('fh-marathon', y)) + '</div>' : slot(null, y, '', art('fh-marathon', y))).join('');
   $('mcount').textContent = n + (n === 1 ? ' finish' : ' finishes');
   $('mprog').innerHTML = progress(n);
 
-  // Other events: one medal per time completed (ten 5Ks = ten medals), all in the colour for that count
-  $('others').innerHTML = ev.data.filter(e => e.id !== 'fh-marathon').map(e => {
+  // Other events: one medal per approved completion, all in the colour for that count
+  $('others').innerHTML = events.filter(e => e.id !== 'fh-marathon').map(e => {
     const got = mine.filter(r => r.event_id === e.id).sort((a, b) => a.year - b.year), c = got.length, t = tierFor(c);
-    const medals = c ? got.map(r => slot(t, r.year, '', art(e.id, r.year))).join('') : slot(null, '', '', null);
+    const wait = pend.filter(r => r.event_id === e.id).sort((a, b) => a.year - b.year);
+    const medals = (c ? got.map(r => slot(t, r.year, '', art(e.id, r.year))).join('') : '') +
+      wait.map(r => '<div style="opacity:.7">' + slot(null, r.year, 'Waiting', art(e.id, r.year)) + '</div>').join('') + (c || wait.length ? '' : slot(null, '', '', null));
     return '<section class="card"><div class="row"><h3 style="font-size:18px">' + esc(e.name) + '</h3><span class="chip">' + c + (c === 1 ? ' time' : ' times') + (t ? ' &middot; ' + t.name : '') + '</span></div>' +
       '<div class="mini">' + medals + '</div>' + progress(c) + '</section>';
   }).join('');
+
+  // Claim status: waiting claims can be withdrawn; rejected ones are explained
+  $('cpend').innerHTML = (pend.length ? '<p class="note" style="margin-top:10px">Waiting for the team to approve:</p>' + pend.map(r =>
+      '<div class="row" style="padding:4px 0"><span>' + esc(evName(r.event_id)) + ' ' + r.year + '</span><button class="btn ghost" data-wd="' + r.id + '" style="min-height:34px;padding:2px 12px">Withdraw</button></div>').join('') : '') +
+    (rej.length ? '<p class="note" style="margin-top:10px">Not approved: ' + rej.map(r => esc(evName(r.event_id)) + ' ' + r.year).join(', ') + '. Get in touch with the team if this looks wrong.</p>' : '');
+  $('cev').innerHTML = events.map(e => '<option value="' + e.id + '">' + esc(e.name) + '</option>').join('');
+}
+
+$('claimOpen').onclick = () => { $('claim').hidden = false; $('claimOpen').hidden = true; $('cyr').value = new Date().getFullYear(); };
+$('ccancel').onclick = () => { $('claim').hidden = true; $('claimOpen').hidden = false; };
+$('claim').onsubmit = async e => {
+  e.preventDefault(); $('csend').disabled = true; $('cmsg').hidden = true;
+  const { error } = await sb.from('results').insert({ user_id: me.user_id, event_id: $('cev').value, year: +$('cyr').value, note: $('cnote').value.trim() || null });
+  $('csend').disabled = false;
+  if (error) { $('cmsg').textContent = /duplicate|unique/i.test(error.message) ? 'You\u2019ve already claimed that one.' : 'Couldn\u2019t send: ' + error.message; $('cmsg').hidden = false; return; }
+  $('claim').reset(); $('claim').hidden = true; $('claimOpen').hidden = false; $('claimOpen').textContent = 'Claim sent! Claim another'; load();
+};
+$('cpend').onclick = async e => {
+  const b = e.target.closest('[data-wd]'); if (!b) return;
+  const { error } = await sb.from('results').delete().eq('id', +b.dataset.wd);
+  if (error) return alert(error.message);
+  load();
+};
+
+guard().then(p => {
+  if (!p) return; me = p;
+  $('who').textContent = (p.name ? p.name.split(' ')[0] + '\u2019s' : 'Your') + ' Medals';
+  load();
 });
 </script>
 </body>

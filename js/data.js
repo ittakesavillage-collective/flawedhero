@@ -1,5 +1,5 @@
 // Flawed Hero content. Bump VERSION here AND the CACHE name in sw.js together.
-const VERSION = '0.1.8';
+const VERSION = '0.1.9';
 
 // 24px line icons, drawn with currentColor
 const ICONS = {
