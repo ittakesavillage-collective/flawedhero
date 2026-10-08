@@ -39,7 +39,7 @@ let me = null;
 const ORDER = { building:0, planned:1, accepted:2, suggested:3, done:4, later:5, denied:6 };
 
 async function load() {
-  const { data, error } = await sb.from('requests').select('*').order('created_at', { ascending: false });
+  const { data, error } = await sb.from('requests').select('*').eq('is_private', false).order('created_at', { ascending: false });
   if (error) { $('list').innerHTML = '<p class="err">Couldn’t load the queue. Check your signal and try again.</p>'; return; }
   const rows = data.sort((a, b) => (ORDER[a.status] - ORDER[b.status]) || ((a.priority || 999) - (b.priority || 999)) || (new Date(b.created_at) - new Date(a.created_at)));
   if (!rows.length) { $('list').innerHTML = '<p class="ph">Nothing here yet. Be the first to suggest something.</p>'; return; }

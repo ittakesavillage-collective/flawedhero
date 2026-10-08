@@ -122,3 +122,8 @@ create policy "approved read contacts" on public.contacts for select to authenti
 create policy "admin manage contacts" on public.contacts for all to authenticated using (public.is_admin()) with check (public.is_admin());
 revoke all on public.contacts from anon;
 -- Seed (see the live table for the current list): Phil Roberton first (sort 10), Michael Broadbent, app developer (sort 90)
+
+-- Private items (admin only): added by migration requests_private
+-- alter table public.requests add column is_private boolean not null default false;
+-- request_defaults() keeps is_private only when the caller is the admin; the select policy
+-- "approved read queue" hides private rows from everyone except the admin; grant update (is_private).

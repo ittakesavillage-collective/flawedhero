@@ -29,6 +29,7 @@
       <b>Add your own idea</b>
       <label class="f">Idea in a few words<input type="text" id="it" maxlength="120" required></label>
       <label class="f">More detail (optional)<textarea id="ib" maxlength="1000" style="min-height:80px"></textarea></label>
+      <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="ipriv" checked style="width:22px;height:22px"> Private: only I can see it</label>
       <div class="btns"><button class="btn" id="isend">Add to the queue</button></div>
       <p class="note" id="imsg" hidden></p>
     </form>
@@ -100,10 +101,10 @@ $('mlist').onchange = async e => {
 // Your own ideas go straight in as Accepted (members' suggestions arrive as Suggested)
 $('idea').onsubmit = async e => {
   e.preventDefault(); $('isend').disabled = true; $('imsg').hidden = true;
-  const ins = await sb.from('requests').insert({ title: $('it').value.trim(), body: $('ib').value.trim() }).select().single();
+  const ins = await sb.from('requests').insert({ title: $('it').value.trim(), body: $('ib').value.trim(), is_private: $('ipriv').checked }).select().single();
   if (ins.error) { $('imsg').textContent = ins.error.message; $('imsg').hidden = false; $('isend').disabled = false; return; }
   await sb.from('requests').update({ status: 'accepted', updated_at: new Date().toISOString() }).eq('id', ins.data.id);
-  $('idea').reset(); $('isend').disabled = false; loadQueue();
+  $('idea').reset(); $('ipriv').checked = true; $('isend').disabled = false; loadQueue();
 };
 const QORDER = { suggested:0, accepted:1, planned:2, building:3, later:4, done:5, denied:6 };
 let reqs = [];
@@ -115,12 +116,13 @@ async function loadQueue() {
 }
 function drawQueue() {
   $('qlist').innerHTML = reqs.length ? reqs.map(r =>
-    '<article class="card req" data-id="' + r.id + '"><div class="row"><b>' + esc(r.title) + '</b><span class="chip s-' + r.status + '">' + STATUS[r.status] + '</span></div>' +
+    '<article class="card req" data-id="' + r.id + '"><div class="row"><b>' + esc(r.title) + '</b>' + (r.is_private ? '<span class="chip" style="background:var(--red);color:#fff">Private</span>' : '') + '<span class="chip s-' + r.status + '">' + STATUS[r.status] + '</span></div>' +
     (r.body ? '<p class="muted">' + esc(r.body) + '</p>' : '') +
     '<small class="muted">' + esc(r.author_name) + ' &middot; ' + ago(r.created_at) + '</small>' +
     '<div class="adm"><select data-f="status" aria-label="Status">' + Object.keys(STATUS).map(s => '<option value="' + s + '"' + (s === r.status ? ' selected' : '') + '>' + STATUS[s] + '</option>').join('') + '</select>' +
     '<input type="number" min="1" max="99" data-f="priority" placeholder="#" value="' + (r.priority || '') + '" aria-label="Priority order">' +
     '<input type="text" data-f="reply" placeholder="Reply to the member (optional)" maxlength="300" value="' + esc(r.reply || '') + '" style="flex-basis:100%;min-height:40px">' +
+    '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-f="is_private"' + (r.is_private ? ' checked' : '') + ' style="width:20px;height:20px"> Private</label>' +
     '<button class="btn" data-save>Save</button><button class="btn ghost" data-del>Delete</button></div></article>').join('') : '<p class="ph">No suggestions yet.</p>';
 }
 $('qlist').onclick = async e => {
@@ -134,7 +136,7 @@ $('qlist').onclick = async e => {
   }
   if (e.target.matches('[data-save]')) {
     const get = f => card.querySelector('[data-f="' + f + '"]').value;
-    const row = { status: get('status'), priority: get('priority') ? +get('priority') : null, reply: get('reply').trim() || null, updated_at: new Date().toISOString() };
+    const row = { is_private: card.querySelector('[data-f="is_private"]').checked, status: get('status'), priority: get('priority') ? +get('priority') : null, reply: get('reply').trim() || null, updated_at: new Date().toISOString() };
     e.target.disabled = true;
     const { error } = await sb.from('requests').update(row).eq('id', id);
     e.target.disabled = false;
