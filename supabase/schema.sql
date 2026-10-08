@@ -109,3 +109,16 @@ create policy "avatars read" on storage.objects for select to authenticated usin
 create policy "avatars insert own" on storage.objects for insert to authenticated with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy "avatars update own" on storage.objects for update to authenticated using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy "avatars delete own" on storage.objects for delete to authenticated using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Useful Contacts: visible to approved members, managed by the admin
+create table public.contacts (
+  id bigint generated always as identity primary key,
+  name text not null, role text, phone text, email text,
+  sort int not null default 100,
+  created_at timestamptz not null default now()
+);
+alter table public.contacts enable row level security;
+create policy "approved read contacts" on public.contacts for select to authenticated using (public.is_approved());
+create policy "admin manage contacts" on public.contacts for all to authenticated using (public.is_admin()) with check (public.is_admin());
+revoke all on public.contacts from anon;
+-- Seed (see the live table for the current list): Phil Roberton first (sort 10), Michael Broadbent, app developer (sort 90)

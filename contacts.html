@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Useful Contacts · Flawed Hero</title>
+<style>
+.ct{gap:8px}
+.ct h2{font-size:22px}
+.ct .role{color:var(--cream);font-family:var(--head);letter-spacing:.5px;text-transform:uppercase;font-size:.85em}
+.ct .num{color:var(--muted)}
+.wa{background:#25D366;color:#073B1A}
+.wa svg{width:20px;height:20px}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Useful Contacts</h1>
+</div></header>
+<main class="wrap">
+  <p class="note">Please WhatsApp first. It's quicker for everyone, and we'll reply as soon as we can. Ring only if it's urgent.</p>
+  <div id="list" style="display:flex;flex-direction:column;gap:12px"><p class="ph">Loading...</p></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script>
+const WA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-4.2A8 8 0 1 1 8.300 18.800z"/><path d="M9 9.500c.5 2.500 2.500 4.500 5 5l1.200-1.200-1.800-1-.9.700a4 4 0 0 1-1.800-1.800l.7-.9-1-1.800z"/></svg>';
+guard().then(async p => {
+  if (!p) return;
+  const { data, error } = await sb.from('contacts').select('*').order('sort').order('name');
+  const el = document.getElementById('list');
+  if (error) { el.innerHTML = '<p class="err">Couldn’t load the contacts. Check your signal and try again.</p>'; return; }
+  el.innerHTML = data.length ? data.map(c => {
+    const digits = (c.phone || '').replace(/\D/g, '');
+    return '<article class="card ct"><div><h2>' + esc(c.name) + '</h2>' + (c.role ? '<div class="role">' + esc(c.role) + '</div>' : '') + '</div>' +
+      (c.phone ? '<div class="num">' + esc(c.phone) + '</div>' : '') +
+      (c.email ? '<div class="num">' + esc(c.email) + '</div>' : '') +
+      '<div class="btns">' +
+      (digits ? '<a class="btn wa" href="https://wa.me/' + digits + '" target="_blank" rel="noopener">' + WA + ' WhatsApp</a>' +
+        '<a class="btn ghost" href="tel:' + esc(c.phone.replace(/\s/g, '')) + '">Call</a>' : '') +
+      (c.email ? '<a class="btn ghost" href="mailto:' + esc(c.email) + '">Email</a>' : '') +
+      '</div></article>';
+  }).join('') : '<p class="ph">No contacts yet.</p>';
+});
+</script>
+</body>
+</html>
