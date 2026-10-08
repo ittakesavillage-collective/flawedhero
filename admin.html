@@ -25,6 +25,11 @@
   </section>
 
   <section id="claims" hidden>
+    <h3 style="font-size:18px;margin-bottom:8px">Marathon bookings</h3>
+    <p class="note" id="enote" style="margin-bottom:8px"></p>
+    <div id="elist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
+    <h3 style="font-size:18px;margin-bottom:8px">Diary events</h3>
+    <div id="dlist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
     <h3 style="font-size:18px;margin-bottom:8px">New charities</h3>
     <div id="chlist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
     <h3 style="font-size:18px;margin-bottom:8px">Medal claims</h3>
@@ -78,7 +83,7 @@ async function loadMembers() {
   members = data;
   const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('*')]);
   events = ev.data || []; results = rs.data || [];
-  drawMembers(); drawClaims(); loadCharities();
+  drawMembers(); drawClaims(); loadCharities(); loadDiary();
 }
 const evName = id => (events.find(e => e.id === id) || { name: id }).name;
 function drawMembers() {
@@ -99,8 +104,46 @@ function drawMembers() {
       (isAdmin(me) && m.user_id !== me.user_id ? '<select data-role aria-label="Role">' + ['member', 'super', 'admin'].map(r => '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>').join('') + '</select>' : '') +
     '</div></article>').join('') : '<p class="ph">Nobody here.</p>';
 }
-let pendingClaims = 0, pendingCharities = 0, charities = [];
-const tabCount = () => { const n = pendingClaims + pendingCharities; $('ctab').textContent = n ? 'Approvals (' + n + ')' : 'Approvals'; };
+let pendingClaims = 0, pendingCharities = 0, pendingDiary = 0, pendingEntries = 0, charities = [];
+const tabCount = () => { const n = pendingClaims + pendingCharities + pendingDiary + pendingEntries; $('ctab').textContent = n ? 'Approvals (' + n + ')' : 'Approvals'; };
+
+// Diary events (staff approve) and marathon bookings (ONLY Phil, the super user, can approve those)
+async function loadDiary() {
+  const [dv, en] = await Promise.all([sb.from('diary_events').select('*').order('starts_at'), sb.from('marathon_entries').select('*').order('created_at')]);
+  const events = dv.data || [], entries = en.data || [];
+  const pendEv = events.filter(x => x.status === 'pending'), pendEn = entries.filter(x => x.status === 'pending');
+  pendingDiary = pendEv.length; pendingEntries = me.role === 'super' ? pendEn.length : 0; tabCount();
+  const isPhil = me.role === 'super';
+  $('enote').textContent = isPhil ? 'Check the payment has arrived before you approve.' : 'Phil approves these. You can see who is waiting.';
+  const mar = events.find(x => x.kind === 'marathon');
+  $('elist').innerHTML = pendEn.length ? pendEn.map(r => {
+    const m = members.find(x => x.user_id === r.user_id) || { name: '(unknown)' };
+    return '<article class="card mem" data-uid="' + r.user_id + '" data-eid="' + r.event_id + '"><div class="row"><b>' + esc(m.name || m.email) + '</b><span class="chip">' + ago(r.created_at) + '</span></div>' +
+      '<p class="muted">Says they are booked on and paid for ' + esc(mar ? mar.title : 'the marathon') + '</p>' +
+      (isPhil ? '<div class="adm"><button class="btn" data-eok>Confirm</button><button class="btn ghost" data-eno>Not confirmed</button></div>' : '') + '</article>';
+  }).join('') : '<p class="ph">No bookings waiting.</p>';
+  $('dlist').innerHTML = pendEv.length ? pendEv.map(x => {
+    const by = members.find(m => m.user_id === x.created_by);
+    return '<article class="card mem" data-did="' + x.id + '"><div class="row"><b>' + esc(x.title) + '</b><span class="chip">' + ago(x.created_at) + '</span></div>' +
+      '<p>' + new Date(x.starts_at).toLocaleString('en-GB', { dateStyle: 'full', timeStyle: x.all_day ? undefined : 'short' }) + (x.location ? ' &middot; ' + esc(x.location) : '') + '</p>' +
+      (x.description ? '<p class="muted">' + esc(x.description) + '</p>' : '') + '<small class="muted">Suggested by ' + esc(by ? by.name : 'a member') + '</small>' +
+      '<div class="adm"><button class="btn" data-dok>Approve</button><button class="btn ghost" data-dno>Reject</button></div></article>';
+  }).join('') : '<p class="ph">No events waiting.</p>';
+}
+$('elist').onclick = async e => {
+  const ok = e.target.matches('[data-eok]'), no = e.target.matches('[data-eno]'); if (!ok && !no) return;
+  const c = e.target.closest('.card'); e.target.disabled = true;
+  const { error } = await sb.from('marathon_entries').update({ status: ok ? 'approved' : 'rejected', decided_by: me.user_id, decided_at: new Date().toISOString() }).eq('user_id', c.dataset.uid).eq('event_id', +c.dataset.eid);
+  if (error) { alert(error.message); e.target.disabled = false; return; }
+  loadDiary(); loadStats();
+};
+$('dlist').onclick = async e => {
+  const ok = e.target.matches('[data-dok]'), no = e.target.matches('[data-dno]'); if (!ok && !no) return;
+  e.target.disabled = true;
+  const { error } = await sb.from('diary_events').update({ status: ok ? 'approved' : 'rejected', decided_by: me.user_id, decided_at: new Date().toISOString() }).eq('id', +e.target.closest('.card').dataset.did);
+  if (error) { alert(error.message); e.target.disabled = false; return; }
+  loadDiary();
+};
 
 // New charities: staff check the name and logo, then approve (they join the network) or reject
 async function loadCharities() {
@@ -200,12 +243,12 @@ $('mlist').onchange = async e => {
 async function loadStats() {
   const cnt = async (t, f) => { let q = sb.from(t).select('*', { count: 'exact', head: true }); if (f) q = f(q); const { count } = await q; return count || 0; };
   const pub = q => q.eq('is_private', false);
-  const [mAll, mOk, mPend, mBlock, rAll, rOpen, rDone] = await Promise.all([
+  const [mAll, mOk, mPend, mBlock, rAll, rOpen, rDone, entrants] = await Promise.all([
     cnt('profiles'), cnt('profiles', q => q.eq('status', 'approved')), cnt('profiles', q => q.eq('status', 'pending')), cnt('profiles', q => q.eq('status', 'blocked')),
-    cnt('requests', pub), cnt('requests', q => pub(q).in('status', ['suggested', 'accepted', 'planned', 'building'])), cnt('requests', q => pub(q).eq('status', 'done'))]);
+    cnt('requests', pub), cnt('requests', q => pub(q).in('status', ['suggested', 'accepted', 'planned', 'building'])), cnt('requests', q => pub(q).eq('status', 'done')), cnt('marathon_entries', q => q.eq('status', 'approved'))]);
   const box = (n, l) => '<div class="card" style="padding:12px"><b style="font-family:var(--head);font-size:30px;color:var(--gold)">' + n + '</b><small class="muted">' + l + '</small></div>';
   $('stats').innerHTML = box(mAll, 'Registered') + box(mOk, 'Approved') + box(mPend, 'Waiting for approval') + box(mBlock, 'Blocked') +
-    box(rAll, 'Suggestions') + box(rOpen, 'Still open') + box(rDone, 'Done');
+    box(rAll, 'Suggestions') + box(rOpen, 'Still open') + box(rDone, 'Done') + box(entrants, 'Marathon entrants (confirmed)');
 }
 
 /* ---------- Development queue ---------- */

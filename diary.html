@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Diary · Flawed Hero</title>
+<style>
+.big{border-color:var(--bronze);background:linear-gradient(160deg,#2A1814,var(--surface) 60%)}
+.big h2{font-size:26px}
+.when{font-family:var(--head);color:var(--gold);font-size:1.15em;letter-spacing:.5px;text-transform:uppercase}
+.count{display:flex;align-items:baseline;gap:8px}
+.count b{font-family:var(--head);font-size:44px;color:var(--gold);line-height:1}
+.date{flex:none;width:58px;text-align:center;border-radius:12px;background:var(--surface2);padding:6px 0;border:1px solid var(--line)}
+.date b{display:block;font-family:var(--head);font-size:24px;line-height:1.1;color:var(--gold)}
+.date small{text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.ev .row{justify-content:flex-start;gap:14px;align-items:flex-start}
+.ev .meta{flex:1;min-width:0}
+details summary{cursor:pointer;color:var(--muted);padding:8px 0}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Diary</h1>
+</div></header>
+<main class="wrap">
+  <section class="card big" id="mara"><p class="ph">Loading...</p></section>
+
+  <div class="row"><h2 style="font-size:20px">Coming up</h2></div>
+  <div id="list" style="display:flex;flex-direction:column;gap:12px"></div>
+  <details id="pastbox" hidden><summary>Past events</summary><div id="past" style="display:flex;flex-direction:column;gap:12px"></div></details>
+
+  <section class="card">
+    <button class="btn alt" id="open">+ Add an event to the diary</button>
+    <form id="form" hidden style="display:flex;flex-direction:column;gap:12px">
+      <label class="f">What's happening?<input type="text" id="title" maxlength="120" required></label>
+      <label class="f">Date<input type="date" id="date" required></label>
+      <label class="f">Start time (leave empty for an all-day event)<input type="time" id="time"></label>
+      <label class="f">Where? (optional)<input type="text" id="loc" maxlength="120"></label>
+      <label class="f">Details (optional)<textarea id="desc" maxlength="600" style="min-height:90px"></textarea></label>
+      <label class="f">Link (optional)<input type="text" id="link" maxlength="200" inputmode="url" placeholder="e.g. www.example.com/entry"></label>
+      <p class="note" id="appnote">Events from members are checked by Michael or Phil before they appear.</p>
+      <div class="btns"><button class="btn" id="send">Add event</button><button type="button" class="btn ghost" id="cancel">Cancel</button></div>
+      <p class="err" id="msg" hidden></p>
+    </form>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script src="js/charities.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let me = null, marathon = null, entry = null;
+const fmtDate = (t, allDay) => new Date(t).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const fmtTime = t => { const d = new Date(t); return d.getHours() === 0 && d.getMinutes() === 0 ? 'Midnight' : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
+
+function drawMarathon() {
+  const m = marathon; if (!m) { $('mara').innerHTML = '<p class="ph">The marathon will appear here.</p>'; return; }
+  const days = Math.ceil((new Date(m.starts_at) - Date.now()) / 864e5);
+  let act;
+  if (!entry) act = '<button class="btn" id="book">I’m booked on and paid</button><p class="note">Tap this once you’ve entered and paid. Phil checks every booking.</p>';
+  else if (entry.status === 'pending') act = '<span class="chip s-suggested">Waiting for Phil to confirm</span><div class="btns"><button class="btn ghost" id="unbook">Withdraw</button></div>';
+  else if (entry.status === 'approved') act = '<span class="chip s-planned" style="font-size:14px">&#10003; You’re booked on and paid. See you at midnight!</span>';
+  else act = '<span class="chip s-denied">Not confirmed</span><p class="note">Phil couldn’t confirm your booking. Get in touch with him and try again.</p><div class="btns"><button class="btn" id="book">Try again</button></div>';
+  $('mara').innerHTML = '<span class="badge">Flawed Hero Marathon</span><h2>' + esc(m.title) + '</h2>' +
+    '<div class="when">' + fmtTime(m.starts_at) + ' &middot; ' + fmtDate(m.starts_at) + '</div>' +
+    (m.location ? '<div class="muted">' + esc(m.location) + '</div>' : '') +
+    (days > 0 ? '<div class="count"><b>' + days + '</b><span class="muted">day' + (days === 1 ? '' : 's') + ' to go</span></div>' : '') +
+    (m.description ? '<p class="tag">' + esc(m.description) + '</p>' : '') + '<div>' + act + '</div>';
+}
+$('mara').onclick = async e => {
+  if (e.target.id === 'book') {
+    e.target.disabled = true;
+    if (entry && entry.status === 'rejected') await sb.from('marathon_entries').delete().eq('event_id', marathon.id).eq('user_id', me.user_id);
+    const { error } = await sb.from('marathon_entries').insert({ event_id: marathon.id });
+    if (error) { alert(error.message); e.target.disabled = false; return; }
+    load();
+  } else if (e.target.id === 'unbook') {
+    const { error } = await sb.from('marathon_entries').delete().eq('event_id', marathon.id).eq('user_id', me.user_id);
+    if (error) return alert(error.message);
+    load();
+  }
+};
+
+function evCard(x) {
+  const d = new Date(x.starts_at), w = safeUrl(x.link), mine = x.created_by === me.user_id;
+  return '<article class="card ev" data-id="' + x.id + '"><div class="row"><div class="date"><b>' + d.getDate() + '</b><small>' + d.toLocaleDateString('en-GB', { month: 'short' }) + '</small></div>' +
+    '<div class="meta"><h3 style="font-size:18px">' + esc(x.title) + '</h3>' +
+    '<small class="muted">' + (x.all_day ? 'All day' : fmtTime(x.starts_at)) + ' &middot; ' + d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric' }) + (x.location ? ' &middot; ' + esc(x.location) : '') + '</small>' +
+    (x.status === 'pending' ? '<br><span class="chip s-suggested">Waiting for approval</span>' : x.status === 'rejected' ? '<br><span class="chip s-denied">Not approved</span>' : '') + '</div></div>' +
+    (x.description ? '<p class="muted">' + esc(x.description) + '</p>' : '') +
+    ((w || isStaff(me) || (mine && x.status === 'pending')) ? '<div class="btns">' + (w ? '<a class="btn ghost" href="' + esc(w) + '" target="_blank" rel="noopener">More info</a>' : '') +
+      ((isStaff(me) || (mine && x.status === 'pending')) ? '<button class="btn ghost" data-del>Delete</button>' : '') + '</div>' : '') + '</article>';
+}
+$('list').onclick = $('past').onclick = async e => {
+  if (!e.target.matches('[data-del]')) return;
+  if (!confirm('Delete this event?')) return;
+  const { error } = await sb.from('diary_events').delete().eq('id', +e.target.closest('.ev').dataset.id);
+  if (error) return alert(error.message);
+  load();
+};
+
+async function load() {
+  const [ev, en] = await Promise.all([sb.from('diary_events').select('*').order('starts_at'),
+    sb.from('marathon_entries').select('*').eq('user_id', me.user_id)]);
+  if (ev.error) { $('mara').innerHTML = '<p class="err">Couldn’t load the diary. Check your signal and try again.</p>'; return; }
+  const now = Date.now();
+  const marathons = ev.data.filter(x => x.kind === 'marathon' && x.status === 'approved');
+  marathon = marathons.find(x => new Date(x.starts_at) > now) || marathons[marathons.length - 1] || null;
+  entry = marathon && en.data ? en.data.find(r => r.event_id === marathon.id) || null : null;
+  drawMarathon();
+  const rest = ev.data.filter(x => x.kind === 'event' && x.status !== 'rejected' || (x.kind === 'event' && x.created_by === me.user_id));
+  const soon = rest.filter(x => new Date(x.starts_at) >= now - 864e5), past = rest.filter(x => new Date(x.starts_at) < now - 864e5).reverse();
+  $('list').innerHTML = soon.length ? soon.map(evCard).join('') : '<p class="ph">Nothing else in the diary yet.</p>';
+  $('pastbox').hidden = !past.length; $('past').innerHTML = past.map(evCard).join('');
+}
+
+$('open').onclick = () => { $('form').hidden = false; $('open').hidden = true; $('title').focus(); };
+$('cancel').onclick = () => { $('form').hidden = true; $('open').hidden = false; };
+$('form').onsubmit = async e => {
+  e.preventDefault(); $('send').disabled = true; $('msg').hidden = true;
+  const time = $('time').value;
+  const row = { title: $('title').value.trim(), starts_at: new Date($('date').value + 'T' + (time || '00:00')).toISOString(), all_day: !time,
+    location: $('loc').value.trim() || null, description: $('desc').value.trim() || null, link: safeUrl($('link').value) || null };
+  const { error } = await sb.from('diary_events').insert(row);
+  $('send').disabled = false;
+  if (error) { $('msg').textContent = 'Couldn’t add it: ' + error.message; $('msg').hidden = false; return; }
+  $('form').reset(); $('form').hidden = true; $('open').hidden = false; load();
+};
+guard().then(p => { if (!p) return; me = p; if (isStaff(p)) $('appnote').textContent = 'As Michael or Phil, your events go straight into the diary.'; load(); });
+</script>
+</body>
+</html>
