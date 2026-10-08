@@ -1,5 +1,5 @@
-// Flawed Hero content. Bump VERSION here AND the CACHE name in sw.js together.
-const VERSION = '0.2.3';
+﻿// Flawed Hero content. Bump VERSION here AND the CACHE name in sw.js together.
+const VERSION = '0.2.4';
 
 // 24px line icons, drawn with currentColor
 const ICONS = {
@@ -28,7 +28,7 @@ const TILES = [
   {id:'movement', name:'My Movement', href:'movement.html'},
   {id:'sponsors', name:'Flawed Hero Sponsors'},
   {id:'contacts', name:'Useful Contacts', href:'contacts.html'},
-  {id:'mech', name:'Merch & Shop'}
+  {id:'mech', name:'Merch & Shop', href:'shop.html'}
 ];
 
 const STATUS = { suggested:'Suggested', accepted:'Accepted', planned:'Planned', building:'Being built', done:'Done', denied:'Denied', later:'Much later' };

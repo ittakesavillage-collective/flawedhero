@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Merch &amp; Shop · Flawed Hero</title>
+<style>
+.prod img.pic{width:100%;border-radius:12px;display:block;background:#000}
+.prod h2{font-size:22px}
+.price{font-family:var(--head);color:var(--gold);font-size:1.2em}
+details.sg summary{cursor:pointer;color:var(--gold);padding:6px 0;font-weight:600}
+details.sg img{width:100%;border-radius:10px;margin-top:8px;background:#fff}
+.hid{opacity:.6}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Merch &amp; Shop</h1>
+</div></header>
+<main class="wrap">
+  <div id="list" style="display:flex;flex-direction:column;gap:14px"><p class="ph">Loading...</p></div>
+  <p class="note">Every purchase helps the Flawed Hero charity events. Payments are taken securely by Stripe, outside this app.</p>
+
+  <section class="card" id="mgr" hidden>
+    <b>Manage the shop (Michael and Phil only)</b>
+    <button class="btn alt" id="open">+ Add a product</button>
+    <form id="form" hidden style="display:flex;flex-direction:column;gap:12px">
+      <label class="f">Product name<input type="text" id="name" maxlength="100" required></label>
+      <label class="f">Description<textarea id="desc" maxlength="600" style="min-height:90px"></textarea></label>
+      <label class="f">Price (as you want it shown, e.g. £20)<input type="text" id="price" maxlength="40"></label>
+      <label class="f">Stripe payment link<input type="text" id="buy" inputmode="url" placeholder="https://buy.stripe.com/..."></label>
+      <label class="f">Photo<input type="file" id="img" accept="image/*"></label>
+      <label class="f">Size guide picture (optional)<input type="file" id="sg" accept="image/*"></label>
+      <p class="note" id="keep" hidden>Leave the pictures empty to keep the current ones.</p>
+      <div class="btns"><button class="btn" id="save">Save product</button><button type="button" class="btn ghost" id="cancel">Cancel</button></div>
+      <p class="err" id="msg" hidden></p>
+    </form>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script src="js/charities.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let me = null, prods = [], editing = null;
+const pic = p => !p ? '' : /^(https?:|assets\/)/.test(p) ? p : SB_URL + '/storage/v1/object/public/shop/' + p;
+
+async function load() {
+  const { data, error } = await sb.from('products').select('*').order('sort').order('id');
+  if (error) { $('list').innerHTML = '<p class="err">Couldn’t load the shop. Check your signal and try again.</p>'; return; }
+  prods = data;
+  $('list').innerHTML = prods.length ? prods.map(p => {
+    const buy = /^https:\/\//i.test(p.buy_url || '') ? p.buy_url : '';
+    return '<article class="card prod' + (p.active ? '' : ' hid') + '" data-id="' + p.id + '">' +
+      (p.image ? '<img class="pic" src="' + esc(pic(p.image)) + '" alt="' + esc(p.name) + '" loading="lazy">' : '') +
+      '<h2>' + esc(p.name) + '</h2>' + (p.active ? '' : '<span class="chip s-denied">Hidden from members</span>') +
+      '<div class="price">' + (p.price ? esc(p.price) : 'Price shown at checkout') + '</div>' +
+      (p.description ? '<p class="muted">' + esc(p.description) + '</p>' : '') +
+      (p.size_guide ? '<details class="sg"><summary>Size guide</summary><img src="' + esc(pic(p.size_guide)) + '" alt="Size guide" loading="lazy"></details>' : '') +
+      '<div class="btns">' + (buy ? '<a class="btn" href="' + esc(buy) + '" target="_blank" rel="noopener">Buy now</a>' : '<span class="chip">Coming soon</span>') +
+      (isStaff(me) ? '<button class="btn ghost" data-edit>Edit</button><button class="btn ghost" data-hide>' + (p.active ? 'Hide' : 'Show') + '</button><button class="btn ghost" data-del>Delete</button>' : '') +
+      '</div></article>';
+  }).join('') : '<section class="card center"><p class="ph">The shop is being stocked. Check back soon.</p></section>';
+}
+
+$('list').onclick = async e => {
+  const card = e.target.closest('.prod'); if (!card) return;
+  const p = prods.find(x => x.id === +card.dataset.id);
+  if (e.target.matches('[data-edit]')) {
+    editing = p; $('form').hidden = false; $('open').hidden = true; $('keep').hidden = false;
+    $('name').value = p.name; $('desc').value = p.description || ''; $('price').value = p.price || ''; $('buy').value = p.buy_url || '';
+    $('mgr').scrollIntoView();
+  } else if (e.target.matches('[data-hide]')) {
+    const { error } = await sb.from('products').update({ active: !p.active }).eq('id', p.id);
+    if (error) return alert(error.message); load();
+  } else if (e.target.matches('[data-del]')) {
+    if (!confirm('Delete "' + p.name + '" for good?')) return;
+    const { error } = await sb.from('products').delete().eq('id', p.id);
+    if (error) return alert(error.message); load();
+  }
+};
+
+async function upload(file) {
+  const path = me.user_id + '/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.jpg';
+  const img = new Image(), url = URL.createObjectURL(file);
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('That file isn’t a picture we can read.')); img.src = url; });
+  const s = Math.min(1, 1100 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+  c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(url);
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.86));
+  const { error } = await sb.storage.from('shop').upload(path, blob, { contentType: 'image/jpeg' });
+  if (error) throw error;
+  return path;
+}
+$('open').onclick = () => { editing = null; $('form').reset(); $('keep').hidden = true; $('form').hidden = false; $('open').hidden = true; $('name').focus(); };
+$('cancel').onclick = () => { $('form').hidden = true; $('open').hidden = false; editing = null; };
+$('form').onsubmit = async e => {
+  e.preventDefault(); $('save').disabled = true; $('msg').hidden = true;
+  try {
+    let buy = $('buy').value.trim(); if (buy && !/^https:\/\//i.test(buy)) throw new Error('The payment link must start with https://');
+    const row = { name: $('name').value.trim(), description: $('desc').value.trim() || null, price: $('price').value.trim() || null, buy_url: buy || null };
+    if ($('img').files[0]) row.image = await upload($('img').files[0]);
+    if ($('sg').files[0]) row.size_guide = await upload($('sg').files[0]);
+    const { error } = editing ? await sb.from('products').update(row).eq('id', editing.id) : await sb.from('products').insert(row);
+    if (error) throw error;
+    $('form').reset(); $('form').hidden = true; $('open').hidden = false; editing = null; load();
+  } catch (err) { $('msg').textContent = 'Couldn’t save: ' + err.message; $('msg').hidden = false; }
+  finally { $('save').disabled = false; }
+};
+guard().then(p => { if (!p) return; me = p; if (isStaff(p)) $('mgr').hidden = false; load(); });
+</script>
+</body>
+</html>
