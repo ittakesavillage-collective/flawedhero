@@ -1,0 +1,131 @@
+/* Flawed Hero app styles. Palette from the Flawed Hero Marathon 2027 poster (navy / cream / amber / bronze).
+   Themed this way for the 2027 event season (at least 7 months from Oct 2026): change tokens here only. */
+:root{
+  --bg:#080D18; --surface:#16131B; --surface2:#201A22; --ink:#F2E3BE; --muted:#B79367; --line:#3A2B28;
+  --gold:#E9A844; --on-gold:#17110A; --bronze:#8C582F; --red:#E53E2F; --cream:#DEB87F;
+  --font:"Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --head:"Oswald", "Outfit", system-ui, sans-serif;
+  --fs:17px; color-scheme:dark;
+}
+:root[data-size="large"]{--fs:20px}
+
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html{-webkit-text-size-adjust:100%;background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:var(--fs);line-height:1.5;
+  padding-bottom:env(safe-area-inset-bottom,0px)}
+h1,h2,h3{margin:0;font-family:var(--head);font-weight:600;line-height:1.15;letter-spacing:.4px;text-transform:uppercase;text-wrap:balance}
+p{margin:0}
+a{color:var(--gold)}
+button,a,input,textarea,select{font:inherit}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:6px}
+
+/* Splash: the event poster, held for 3 seconds */
+#splash{position:fixed;inset:0;z-index:50;background:var(--bg) center/contain no-repeat url(../assets/splash.jpg);
+  transition:opacity .4s}
+#splash.out{opacity:0;pointer-events:none}
+
+/* Top bar */
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.bar-in{max-width:560px;margin:0 auto;padding:8px 12px 8px 16px;display:flex;align-items:center;gap:6px;min-height:60px}
+.brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-decoration:none;color:var(--ink)}
+.brand img{height:38px;width:38px;border-radius:9px;flex:none}
+.brand span{font-family:var(--head);font-size:22px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap}
+.ib{width:44px;height:44px;border-radius:12px;border:0;background:none;color:var(--ink);display:grid;place-items:center;cursor:pointer;text-decoration:none;flex:none;position:relative}
+.ib:hover{background:var(--surface2)}
+.ib svg{width:24px;height:24px}
+.ib.admin,.ib.plus{font-family:var(--head);font-weight:700;font-size:28px;color:var(--gold);line-height:1}
+.ib .dot{position:absolute;top:6px;right:6px;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font:700 11px/18px var(--font);text-align:center;padding:0 4px}
+.back{background:none;border:0;color:var(--gold);font-weight:600;font-size:16px;padding:10px 4px;cursor:pointer;text-decoration:none}
+.bar h1{font-size:18px;flex:1;text-align:center;margin-right:56px}
+
+.wrap{max-width:560px;margin:0 auto;padding:18px 16px 40px;display:flex;flex-direction:column;gap:18px}
+
+/* Home grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{display:flex;flex-direction:column;justify-content:space-between;gap:14px;min-height:112px;padding:14px;border-radius:16px;
+  background:var(--surface);border:1px solid var(--line);color:var(--ink);text-decoration:none;box-shadow:0 1px 2px rgb(0 0 0 / .3)}
+.tile:active{transform:scale(.98)}
+.tile svg{width:30px;height:30px;color:var(--gold)}
+.tile b{font-family:var(--head);font-size:1.05em;font-weight:500;letter-spacing:.5px;text-transform:uppercase;line-height:1.2}
+.tile.first{background:linear-gradient(160deg,#3A1E1A,var(--surface));border-color:var(--bronze)}
+.tile.first svg{color:var(--red)}
+.ver{text-align:center;color:var(--muted);font-size:13px;margin-top:6px}
+
+.banner{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--surface2);color:var(--ink);text-decoration:none}
+.banner b{flex:1;font-weight:600}
+.banner .x{background:none;border:0;color:var(--muted);font-size:22px;line-height:1;padding:4px 6px;cursor:pointer}
+
+/* Cards & content */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.hero{display:flex;align-items:center;gap:14px}
+.hero .ic{width:56px;height:56px;border-radius:16px;background:var(--surface2);display:grid;place-items:center;flex:none}
+.hero .ic svg{width:32px;height:32px;color:var(--gold)}
+.hero h2{font-size:26px}
+.muted{color:var(--muted)}
+.ph{color:var(--muted);font-style:italic}
+.tag{font-family:Georgia,"Times New Roman",serif;font-style:italic;color:var(--cream)}
+dl.facts{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 14px}
+dl.facts dt{color:var(--muted)}
+dl.facts dd{margin:0;font-weight:500}
+.btns{display:flex;flex-wrap:wrap;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:10px 20px;border-radius:999px;border:0;
+  background:var(--gold);color:var(--on-gold);font-weight:700;text-decoration:none;cursor:pointer}
+.btn.alt{background:var(--bronze);color:#fff}
+.btn.ghost{background:none;color:var(--ink);border:1.5px solid var(--line)}
+.btn.danger{background:var(--red);color:#fff}
+.btn:disabled,.btn[aria-disabled="true"]{opacity:.5;pointer-events:none}
+.badge{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--gold);color:var(--on-gold);align-self:flex-start}
+.note{font-size:14px;color:var(--muted)}
+.err{font-size:14px;color:#FF8A7D}
+
+/* Forms */
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:600}
+input[type=text],input[type=email],input[type=password],input[type=tel],textarea,select{min-height:48px;padding:10px 14px;border-radius:12px;
+  border:1.5px solid var(--line);background:var(--surface2);color:var(--ink);font-weight:400;width:100%}
+textarea{resize:vertical;min-height:130px}
+.seg{display:flex;background:var(--surface2);border-radius:12px;padding:4px;gap:4px}
+.seg button{flex:1;min-height:42px;border:0;border-radius:9px;background:none;color:var(--ink);font-weight:500;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--gold);color:var(--on-gold);font-weight:700}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+/* Auth */
+.authlogo{display:block;width:120px;height:120px;border-radius:24px;margin:8px auto 0}
+.center{text-align:center}
+
+/* Profile */
+.avatar{width:110px;height:110px;border-radius:50%;background:var(--surface2) center/cover no-repeat;border:2px solid var(--bronze);flex:none;display:grid;place-items:center;color:var(--muted)}
+.avatar svg{width:48px;height:48px}
+.choice{display:flex;flex-direction:column;gap:8px}
+.choice button{text-align:left;padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface2);color:var(--ink);cursor:pointer}
+.choice button[aria-pressed="true"]{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.choice small{display:block;color:var(--muted)}
+
+/* Development queue */
+.req{gap:6px}
+.req .row{align-items:flex-start}
+.req .row b{flex:1}
+.chip{flex:none;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--surface2);color:var(--ink);white-space:nowrap}
+.chip.s-suggested{background:var(--surface2);color:var(--cream)}
+.chip.s-accepted{background:var(--bronze);color:#fff}
+.chip.s-planned{background:var(--gold);color:var(--on-gold)}
+.chip.s-building{background:var(--red);color:#fff}
+.chip.s-done{background:var(--cream);color:var(--on-gold)}
+.chip.s-denied,.chip.s-later{background:none;border:1.5px solid var(--line);color:var(--muted)}
+.req.dim{opacity:.7}
+.reply{font-size:.92em;padding:8px 12px;border-left:3px solid var(--gold);background:var(--surface2);border-radius:0 10px 10px 0}
+.pri{font-family:var(--head);color:var(--gold);font-size:1.2em;min-width:1.4em}
+.adm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
+.adm select{min-height:40px;width:auto;flex:1;min-width:120px}
+.adm input[type=number]{min-height:40px;width:70px;padding:6px 10px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface2);color:var(--ink)}
+
+/* Members (admin) */
+.mem{gap:6px}
+.mem .row b{flex:1}
+.chip.st-pending{background:var(--gold);color:var(--on-gold)}
+.chip.st-approved{background:var(--bronze);color:#fff}
+.chip.st-blocked{background:var(--red);color:#fff}
+
+/* Typing should never zoom or jolt the page */
+input,textarea,select{font-size:max(16px,1em)}
+form{scroll-margin-top:76px}

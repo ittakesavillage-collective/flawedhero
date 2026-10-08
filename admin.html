@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Admin · Flawed Hero</title>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Admin</h1>
+</div></header>
+<main class="wrap">
+  <div class="seg" id="tabs"><button data-v="members" aria-pressed="true">Members</button><button data-v="queue" aria-pressed="false" id="qtab">Queue</button></div>
+
+  <section id="members">
+    <div class="chips" style="display:flex;gap:6px;margin-bottom:12px" id="mf"></div>
+    <div id="mlist" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <section id="queue" hidden>
+    <div id="qlist" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let me = null, mfilter = 'pending', members = [];
+const ROLE_LABEL = { admin: 'Admin', super: 'Super user', member: 'Member' };
+
+// Michael (admin) manages everything. Super users (Phil) can approve members but not change roles or the queue.
+guard({ staff: true }).then(p => {
+  if (!p) return; me = p;
+  if (!isAdmin(p)) { $('qtab').hidden = true; }
+  tab(location.hash === '#queue' && isAdmin(p) ? 'queue' : 'members');
+  loadMembers(); if (isAdmin(p)) loadQueue();
+});
+function tab(v) {
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
+  $('members').hidden = v !== 'members'; $('queue').hidden = v !== 'queue';
+}
+$('tabs').onclick = e => { if (e.target.dataset.v) tab(e.target.dataset.v); };
+
+/* ---------- Members ---------- */
+async function loadMembers() {
+  const { data, error } = await sb.from('profiles').select('*').order('created_at', { ascending: false });
+  if (error) { $('mlist').innerHTML = '<p class="err">' + esc(error.message) + '</p>'; return; }
+  members = data; drawMembers();
+}
+function drawMembers() {
+  const counts = { pending: 0, approved: 0, blocked: 0 }; members.forEach(m => counts[m.status]++);
+  $('mf').innerHTML = ['pending', 'approved', 'blocked'].map(s =>
+    '<button class="btn ' + (s === mfilter ? '' : 'ghost') + '" style="min-height:38px;padding:4px 14px" data-f="' + s + '">' + s[0].toUpperCase() + s.slice(1) + ' (' + counts[s] + ')</button>').join('');
+  const rows = members.filter(m => m.status === mfilter);
+  $('mlist').innerHTML = rows.length ? rows.map(m =>
+    '<article class="card mem" data-id="' + m.user_id + '"><div class="row"><b>' + esc(m.name || '(no name)') + '</b><span class="chip st-' + m.status + '">' + ROLE_LABEL[m.role] + '</span></div>' +
+    '<small class="muted">' + esc(m.email) + (m.phone ? ' &middot; ' + esc(m.phone) : '') + ' &middot; joined ' + ago(m.created_at) + '</small>' +
+    (m.kin_name ? '<small class="muted">Next of kin: ' + esc(m.kin_name) + (m.kin_relationship ? ' (' + esc(m.kin_relationship) + ')' : '') + ' ' + esc(m.kin_phone) + '</small>' : '') +
+    (m.hero_story ? '<p class="muted" style="white-space:pre-wrap">' + esc(m.hero_story) + '</p><small class="muted">Story: ' + (m.hero_story_choice === 'rework' ? 'wants us to rework it' : m.hero_story_choice === 'own' ? 'keep in own words' : 'not chosen yet') + '</small>' : '') +
+    '<div class="adm">' +
+      (m.status !== 'approved' ? '<button class="btn" data-a="approved">Approve</button>' : '') +
+      (m.status !== 'blocked' && m.user_id !== me.user_id ? '<button class="btn ghost" data-a="blocked">Block</button>' : '') +
+      (m.status === 'blocked' ? '<button class="btn ghost" data-a="pending">Back to waiting</button>' : '') +
+      (isAdmin(me) && m.user_id !== me.user_id ? '<select data-role aria-label="Role">' + ['member', 'super', 'admin'].map(r => '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>').join('') + '</select>' : '') +
+    '</div></article>').join('') : '<p class="ph">Nobody here.</p>';
+}
+$('mf').onclick = e => { if (e.target.dataset.f) { mfilter = e.target.dataset.f; drawMembers(); } };
+$('mlist').onclick = async e => {
+  const b = e.target.closest('button[data-a]'); if (!b) return;
+  const m = members.find(x => x.user_id === b.closest('.card').dataset.id);
+  b.disabled = true;
+  const { error } = await sb.rpc('set_member', { p_user: m.user_id, p_status: b.dataset.a, p_role: null });
+  if (error) { alert(error.message); b.disabled = false; return; }
+  m.status = b.dataset.a; drawMembers();
+};
+$('mlist').onchange = async e => {
+  if (!e.target.matches('select[data-role]')) return;
+  const m = members.find(x => x.user_id === e.target.closest('.card').dataset.id);
+  const { error } = await sb.rpc('set_member', { p_user: m.user_id, p_status: null, p_role: e.target.value });
+  if (error) { alert(error.message); e.target.value = m.role; return; }
+  m.role = e.target.value; drawMembers();
+};
+
+/* ---------- Development queue ---------- */
+const QORDER = { suggested:0, accepted:1, planned:2, building:3, later:4, done:5, denied:6 };
+let reqs = [];
+async function loadQueue() {
+  const { data, error } = await sb.from('requests').select('*');
+  if (error) { $('qlist').innerHTML = '<p class="err">' + esc(error.message) + '</p>'; return; }
+  reqs = data.sort((a, b) => (QORDER[a.status] - QORDER[b.status]) || ((a.priority || 999) - (b.priority || 999)) || (new Date(b.created_at) - new Date(a.created_at)));
+  drawQueue();
+}
+function drawQueue() {
+  $('qlist').innerHTML = reqs.length ? reqs.map(r =>
+    '<article class="card req" data-id="' + r.id + '"><div class="row"><b>' + esc(r.title) + '</b><span class="chip s-' + r.status + '">' + STATUS[r.status] + '</span></div>' +
+    (r.body ? '<p class="muted">' + esc(r.body) + '</p>' : '') +
+    '<small class="muted">' + esc(r.author_name) + ' &middot; ' + ago(r.created_at) + '</small>' +
+    '<div class="adm"><select data-f="status" aria-label="Status">' + Object.keys(STATUS).map(s => '<option value="' + s + '"' + (s === r.status ? ' selected' : '') + '>' + STATUS[s] + '</option>').join('') + '</select>' +
+    '<input type="number" min="1" max="99" data-f="priority" placeholder="#" value="' + (r.priority || '') + '" aria-label="Priority order">' +
+    '<input type="text" data-f="reply" placeholder="Reply to the member (optional)" maxlength="300" value="' + esc(r.reply || '') + '" style="flex-basis:100%;min-height:40px">' +
+    '<button class="btn" data-save>Save</button><button class="btn ghost" data-del>Delete</button></div></article>').join('') : '<p class="ph">No suggestions yet.</p>';
+}
+$('qlist').onclick = async e => {
+  const card = e.target.closest('.card'); if (!card) return;
+  const id = +card.dataset.id;
+  if (e.target.matches('[data-del]')) {
+    if (!confirm('Delete this suggestion for good?')) return;
+    const { error } = await sb.from('requests').delete().eq('id', id);
+    if (error) return alert(error.message);
+    reqs = reqs.filter(r => r.id !== id); drawQueue(); return;
+  }
+  if (e.target.matches('[data-save]')) {
+    const get = f => card.querySelector('[data-f="' + f + '"]').value;
+    const row = { status: get('status'), priority: get('priority') ? +get('priority') : null, reply: get('reply').trim() || null, updated_at: new Date().toISOString() };
+    e.target.disabled = true;
+    const { error } = await sb.from('requests').update(row).eq('id', id);
+    e.target.disabled = false;
+    if (error) return alert(error.message);
+    Object.assign(reqs.find(r => r.id === id), row); e.target.textContent = 'Saved';
+    setTimeout(() => { reqs.sort((a, b) => (QORDER[a.status] - QORDER[b.status]) || ((a.priority || 999) - (b.priority || 999))); drawQueue(); }, 700);
+  }
+};
+</script>
+</body>
+</html>

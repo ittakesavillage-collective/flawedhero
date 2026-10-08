@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>My Profile · Flawed Hero</title>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>My Profile</h1>
+</div></header>
+<main class="wrap">
+  <form id="form" style="display:flex;flex-direction:column;gap:18px">
+    <section class="card">
+      <div class="row" style="justify-content:flex-start;gap:16px">
+        <div class="avatar" id="av"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="btn ghost" for="photo" style="cursor:pointer">Add / change photo</label>
+          <input type="file" id="photo" accept="image/*" hidden>
+          <p class="note" id="pmsg">A clear photo of your face works best.</p>
+        </div>
+      </div>
+      <label class="f">Your name<input type="text" id="name" maxlength="60" autocomplete="name" required></label>
+      <label class="f">Mobile number<input type="tel" id="phone" maxlength="30" autocomplete="tel"></label>
+      <label class="f">Email<input type="email" id="email" disabled></label>
+      <label class="f">Address<textarea id="address" style="min-height:80px" maxlength="300" autocomplete="street-address"></textarea></label>
+    </section>
+
+    <section class="card">
+      <b>Next of kin</b>
+      <p class="note">Someone we can contact in an emergency during an event.</p>
+      <label class="f">Their name<input type="text" id="kin_name" maxlength="60"></label>
+      <label class="f">Relationship to you<input type="text" id="kin_rel" maxlength="40" placeholder="e.g. Partner, Mum, Friend"></label>
+      <label class="f">Their phone number<input type="tel" id="kin_phone" maxlength="30"></label>
+    </section>
+
+    <section class="card">
+      <b>Why are you a hero?</b>
+      <p class="note">Tell us in your own words. There's no wrong answer.</p>
+      <textarea id="story" maxlength="2000" placeholder="Write as much or as little as you like"></textarea>
+    </section>
+
+    <div class="btns"><button class="btn" id="save">Save</button></div>
+    <p class="note" id="msg" hidden></p>
+  </form>
+
+  <!-- Shown after saving a hero story: keep as written or let us polish it -->
+  <section class="card" id="ask" hidden>
+    <b>Your story</b>
+    <p class="muted" id="preview" style="white-space:pre-wrap"></p>
+    <p>Would you like to keep this exactly in your own words, or have us tidy it up for you in our next update? Not everyone enjoys writing about themselves, but you are a hero and we want it to shine.</p>
+    <div class="choice" id="choice">
+      <button type="button" data-v="own" aria-pressed="false">Keep it in my own words<small>We'll use it just as you wrote it.</small></button>
+      <button type="button" data-v="rework" aria-pressed="false">Have it reworked by the team<small>We'll polish it and you can see it before it's used.</small></button>
+    </div>
+    <div class="btns"><button class="btn" id="choose" disabled>Confirm</button></div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let me = null, choice = null, storyChanged = false;
+const say = t => { $('msg').textContent = t; $('msg').hidden = false; };
+
+async function showPhoto(path) {
+  if (!path) return;
+  const { data } = await sb.storage.from('avatars').createSignedUrl(path, 3600);
+  if (data) { $('av').style.backgroundImage = 'url(' + data.signedUrl + ')'; $('av').innerHTML = ''; }
+}
+
+guard().then(p => {
+  if (!p) return; me = p;
+  $('name').value = p.name || ''; $('phone').value = p.phone || ''; $('email').value = p.email || '';
+  $('address').value = p.address || ''; $('kin_name').value = p.kin_name || ''; $('kin_rel').value = p.kin_relationship || '';
+  $('kin_phone').value = p.kin_phone || ''; $('story').value = p.hero_story || '';
+  choice = p.hero_story_choice || null;
+  showPhoto(p.photo_path);
+});
+$('story').oninput = () => { storyChanged = true; };
+
+// Shrink the photo on the phone first (512px JPEG) so uploads are small and fast
+function shrink(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, 512 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); c.toBlob(b => b ? res(b) : rej(new Error('no blob')), 'image/jpeg', 0.85);
+    };
+    img.onerror = () => rej(new Error('That file isn’t a picture we can read.'));
+    img.src = url;
+  });
+}
+$('photo').onchange = async e => {
+  const f = e.target.files[0]; if (!f || !me) return;
+  $('pmsg').textContent = 'Uploading...';
+  try {
+    const blob = await shrink(f), path = me.user_id + '/avatar.jpg';
+    const { error } = await sb.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (error) throw error;
+    const r = await sb.from('profiles').update({ photo_path: path, updated_at: new Date().toISOString() }).eq('user_id', me.user_id);
+    if (r.error) throw r.error;
+    me.photo_path = path; await showPhoto(path); $('pmsg').textContent = 'Photo saved.';
+  } catch (err) { $('pmsg').textContent = 'Couldn’t save the photo: ' + err.message; }
+};
+
+$('form').onsubmit = async e => {
+  e.preventDefault(); $('save').disabled = true; $('msg').hidden = true;
+  const story = $('story').value.trim();
+  const row = { name: $('name').value.trim(), phone: $('phone').value.trim(), address: $('address').value.trim(),
+    kin_name: $('kin_name').value.trim(), kin_relationship: $('kin_rel').value.trim(), kin_phone: $('kin_phone').value.trim(),
+    hero_story: story, updated_at: new Date().toISOString() };
+  if (story !== (me.hero_story || '')) row.hero_story_choice = null;
+  const { error } = await sb.from('profiles').update(row).eq('user_id', me.user_id);
+  $('save').disabled = false;
+  if (error) return say('Couldn’t save: ' + error.message);
+  const changed = story !== (me.hero_story || '');
+  Object.assign(me, row);
+  if (story && (changed || !me.hero_story_choice)) {
+    $('preview').textContent = story; $('form').hidden = true; $('ask').hidden = false; $('ask').scrollIntoView();
+    choice = null; draw();
+  } else say('Saved.');
+};
+
+const draw = () => { document.querySelectorAll('#choice button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === choice)); $('choose').disabled = !choice; };
+$('choice').onclick = e => { const b = e.target.closest('button'); if (b) { choice = b.dataset.v; draw(); } };
+$('choose').onclick = async () => {
+  $('choose').disabled = true;
+  const { error } = await sb.from('profiles').update({ hero_story_choice: choice }).eq('user_id', me.user_id);
+  if (error) { $('choose').disabled = false; return alert('Couldn’t save your choice: ' + error.message); }
+  me.hero_story_choice = choice; $('ask').hidden = true; $('form').hidden = false; say('Saved. Thank you, hero.');
+};
+</script>
+</body>
+</html>

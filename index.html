@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Flawed Hero">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Flawed Hero</title>
+</head>
+<body>
+<div id="splash" role="img" aria-label="The Flawed Hero Marathon 2027. Flawed. Not Broken."></div>
+<header class="bar"><div class="bar-in">
+  <a class="brand" href="./"><img src="icons/icon-192.png" alt="" width="38" height="38"><span>Flawed Hero</span></a>
+  <!-- Michael only: the admin !. Everyone else gets the + (development queue). -->
+  <a class="ib admin" id="adm" href="admin.html" aria-label="Admin" hidden>!<span class="dot" id="dot" hidden></span></a>
+  <a class="ib plus" id="plus" href="queue.html" aria-label="Development queue and suggestions" hidden>+</a>
+  <a class="ib" href="settings.html" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a>
+  <a class="ib" href="about.html" aria-label="About us"><svg viewBox="0 0 24 24" aria-hidden="true" style="fill:none"><path d="M2 15l4.5-4.5L11 15" stroke="#4A7C59" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 12.5l5-6 5 6" stroke="#D96B43" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 15l4.5-4.5L22 15" stroke="#E8A838" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="17.5" r="2" fill="#E8A838"/></svg></a>
+</div></header>
+
+<main class="wrap">
+  <a class="banner" id="inst" href="install.html" hidden>
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+    <b>Add Flawed Hero to your home screen</b>
+    <button class="x" id="instx" aria-label="Hide">&times;</button>
+  </a>
+  <nav class="grid" id="grid" aria-label="Flawed Hero"></nav>
+  <p class="ver" id="ver"></p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script>
+// Splash: the poster holds for 3 seconds, once each time the app is opened
+const splash = document.getElementById('splash');
+let seen = false; try { seen = sessionStorage.getItem('fh.splash') === '1'; sessionStorage.setItem('fh.splash', '1'); } catch (e) {}
+if (seen) splash.remove(); else setTimeout(() => { splash.classList.add('out'); setTimeout(() => splash.remove(), 450); }, 3000);
+
+document.getElementById('grid').innerHTML = TILES.map((t, i) =>
+  '<a class="tile' + (i === 0 ? ' first' : '') + '" href="' + (t.href || 'soon.html?p=' + t.id) + '">' + svg(t.id) + '<b>' + t.name + '</b></a>').join('');
+document.getElementById('ver').textContent = 'v' + VERSION;
+
+// Everyone must be signed in and approved; admin gets !, everyone else gets +
+guard().then(async p => {
+  if (!p) return;
+  if (isAdmin(p)) {
+    document.getElementById('adm').hidden = false;
+    const { count } = await sb.from('profiles').select('user_id', { count: 'exact', head: true }).eq('status', 'pending');
+    const { count: rc } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'suggested');
+    const n = (count || 0) + (rc || 0);
+    if (n) { const d = document.getElementById('dot'); d.textContent = n; d.hidden = false; }
+  } else document.getElementById('plus').hidden = false;
+});
+
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+let hid = false; try { hid = localStorage.getItem('fh.instHidden') === '1'; } catch (e) {}
+if (!standalone && !hid) document.getElementById('inst').hidden = false;
+document.getElementById('instx').onclick = e => {
+  e.preventDefault(); document.getElementById('inst').hidden = true;
+  try { localStorage.setItem('fh.instHidden', '1'); } catch (err) {}
+};
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

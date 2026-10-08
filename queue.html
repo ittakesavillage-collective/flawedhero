@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>Development queue · Flawed Hero</title>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="./">&larr; Home</a>
+  <h1>Development queue</h1>
+</div></header>
+<main class="wrap">
+  <section class="card" id="sugg">
+    <button class="btn" id="open">+ Suggest something for the app</button>
+    <form id="form" hidden style="display:flex;flex-direction:column;gap:12px">
+      <label class="f">Your idea in a few words<input type="text" id="title" maxlength="120" required></label>
+      <label class="f">Tell us more (optional)<textarea id="body" maxlength="1000" style="min-height:100px"></textarea></label>
+      <div class="btns"><button class="btn" id="send">Send suggestion</button><button type="button" class="btn ghost" id="cancel">Cancel</button></div>
+      <p class="note" id="msg" hidden></p>
+    </form>
+  </section>
+  <a class="btn alt" id="mem" href="admin.html#members" hidden>Approve new members</a>
+  <p class="note">This is what we're working on. Every suggestion is read, and we decide what goes in and in what order.</p>
+  <div id="list" style="display:flex;flex-direction:column;gap:12px"></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let me = null;
+const ORDER = { building:0, planned:1, accepted:2, suggested:3, done:4, later:5, denied:6 };
+
+async function load() {
+  const { data, error } = await sb.from('requests').select('*').order('created_at', { ascending: false });
+  if (error) { $('list').innerHTML = '<p class="err">Couldn’t load the queue. Check your signal and try again.</p>'; return; }
+  const rows = data.sort((a, b) => (ORDER[a.status] - ORDER[b.status]) || ((a.priority || 999) - (b.priority || 999)) || (new Date(b.created_at) - new Date(a.created_at)));
+  if (!rows.length) { $('list').innerHTML = '<p class="ph">Nothing here yet. Be the first to suggest something.</p>'; return; }
+  $('list').innerHTML = rows.map(r =>
+    '<article class="card req' + (r.status === 'denied' || r.status === 'later' ? ' dim' : '') + '">' +
+    '<div class="row">' + (r.priority && ['accepted','planned','building'].includes(r.status) ? '<span class="pri">' + r.priority + '</span>' : '') +
+    '<b>' + esc(r.title) + '</b><span class="chip s-' + r.status + '">' + STATUS[r.status] + '</span></div>' +
+    (r.body ? '<p class="muted">' + esc(r.body) + '</p>' : '') +
+    '<small class="muted">' + esc(r.author_name) + ' &middot; ' + ago(r.created_at) + '</small>' +
+    (r.reply ? '<p class="reply">' + esc(r.reply) + '</p>' : '') + '</article>').join('');
+}
+
+guard().then(p => { if (!p) return; me = p; if (isStaff(p)) $('mem').hidden = false; load(); });
+
+$('open').onclick = () => { $('form').hidden = false; $('open').hidden = true; $('title').focus(); };
+$('cancel').onclick = () => { $('form').hidden = true; $('open').hidden = false; };
+$('form').onsubmit = async e => {
+  e.preventDefault(); $('send').disabled = true; $('msg').hidden = true;
+  const { error } = await sb.from('requests').insert({ title: $('title').value.trim(), body: $('body').value.trim() });
+  $('send').disabled = false;
+  if (error) { $('msg').textContent = 'Couldn’t send: ' + error.message; $('msg').hidden = false; return; }
+  $('form').reset(); $('form').hidden = true; $('open').hidden = false;
+  $('open').textContent = 'Thanks! Suggest another';
+  load();
+};
+</script>
+</body>
+</html>

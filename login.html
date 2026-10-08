@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<title>Sign in · Flawed Hero</title>
+</head>
+<body>
+<main class="wrap" style="padding-top:calc(24px + env(safe-area-inset-top,0px))">
+  <img class="authlogo" src="icons/icon-192.png" alt="Flawed Hero">
+  <div class="center"><h1>Flawed Hero</h1><p class="tag">Flawed. Not Broken.</p></div>
+
+  <section class="card" id="wait" hidden>
+    <b id="waitt">Thanks, you're registered</b>
+    <p id="waitp">We check every new member by hand. You'll be able to come in once you've been approved. Open the app again later.</p>
+    <div class="btns"><button class="btn" id="again">Check again</button><button class="btn ghost" id="out">Sign out</button></div>
+  </section>
+
+  <section class="card" id="auth">
+    <div class="seg" id="mode"><button data-v="in" aria-pressed="true">Sign in</button><button data-v="up" aria-pressed="false">Register</button></div>
+    <form id="form" style="display:flex;flex-direction:column;gap:12px">
+      <label class="f" id="nameRow" hidden>Your name<input type="text" id="name" maxlength="60" autocomplete="name" placeholder="e.g. Sam Smith"></label>
+      <label class="f">Email<input type="email" id="email" autocomplete="email" required></label>
+      <label class="f">Password<input type="password" id="pw" autocomplete="current-password" minlength="8" required></label>
+      <p class="note" id="pwnote" hidden>At least 8 characters.</p>
+      <div class="btns"><button class="btn" id="go">Sign in</button></div>
+      <p class="err" id="msg" hidden></p>
+    </form>
+    <p class="note" id="reg" hidden>Flawed Hero is for people taking part in our events. After you register, we check your details and approve you.</p>
+  </section>
+  <p class="ver" id="ver"></p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+$('ver').textContent = 'v' + VERSION;
+let mode = 'in';
+const draw = () => {
+  document.querySelectorAll('#mode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === mode));
+  $('nameRow').hidden = $('pwnote').hidden = $('reg').hidden = mode === 'in';
+  $('name').required = mode === 'up';
+  $('go').textContent = mode === 'in' ? 'Sign in' : 'Register';
+  $('pw').autocomplete = mode === 'in' ? 'current-password' : 'new-password';
+  $('msg').hidden = true;
+};
+$('mode').onclick = e => { if (e.target.dataset.v) { mode = e.target.dataset.v; draw(); } };
+const say = t => { $('msg').textContent = t; $('msg').hidden = false; };
+
+// Signed in but not approved yet: show the waiting card instead of the form
+async function showWait() {
+  const p = await myProfile();
+  if (p && p.status === 'approved') return location.replace('./');
+  $('auth').hidden = true; $('wait').hidden = false;
+  if (p && p.status === 'blocked') { $('waitt').textContent = 'Account paused'; $('waitp').textContent = 'Please get in touch with the Flawed Hero team about your account.'; }
+}
+$('again').onclick = () => location.replace('login.html');
+$('out').onclick = async () => { await sb.auth.signOut(); location.replace('login.html'); };
+
+$('form').onsubmit = async e => {
+  e.preventDefault(); $('go').disabled = true; $('msg').hidden = true;
+  const email = $('email').value.trim(), password = $('pw').value;
+  try {
+    if (mode === 'up') {
+      const name = $('name').value.trim();
+      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name } } });
+      if (error) throw error;
+      if (!data.session) { say('Almost there: check your email to confirm, then sign in.'); return; }
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    }
+    await showWait();
+  } catch (err) {
+    say(/Invalid login/i.test(err.message) ? 'That email and password don’t match.' : /registered/i.test(err.message) ? 'That email is already registered. Try signing in.' : err.message);
+  } finally { $('go').disabled = false; }
+};
+
+(async () => { if (await currentUser()) await showWait(); })();
+</script>
+</body>
+</html>
