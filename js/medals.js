@@ -11,6 +11,9 @@ const tierFor = n => { let t = null; TIERS.forEach(x => { if (n >= x.min) t = x;
 // Phil's own medal designs go here, one image per event+year (put the file in assets/medals/ and add a line):
 //   'fh-marathon:2025': 'assets/medals/fh-marathon-2025.png'
 // A design replaces the drawn medal. Years not yet completed show the design as a dark shadow.
+// Give BOTH sides to get the slowly turning, glinting medal:
+//   'fh-marathon:2025': { front: 'assets/medals/fh-2025-front.png', back: 'assets/medals/fh-2025-back.png' }
+// (a plain string still works and shows a still picture)
 const MEDAL_ART = {};
 
 let _mid = 0;
@@ -29,8 +32,17 @@ function medalSvg(tier) {
       '<path d="M43 98V71h16M43 83h12" fill="none" stroke="#7A5A10" stroke-opacity=".55" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>' : '') +
     '</svg>';
 }
+// A real medal design that has both sides, turning slowly with a glint across it
+function coin(art) {
+  const f = esc(art.front), b = esc(art.back || art.front);
+  return '<div class="stage"><div class="coin">' +
+    '<div class="face front" style="--img:url(\'' + f + '\')"><img src="' + f + '" alt=""></div>' +
+    '<div class="face back" style="--img:url(\'' + b + '\')"><img src="' + b + '" alt=""></div></div></div>';
+}
 function slot(tier, label, sub, art) {
-  const pic = art ? '<img class="art" src="' + esc(art) + '" alt="">' : medalSvg(tier);
+  const still = art && (typeof art === 'string' ? art : art.front);
+  // won + both sides = the turning medal; not won yet = a dark still shadow of the design
+  const pic = art && tier && typeof art === 'object' ? coin(art) : still ? '<img class="art" src="' + esc(still) + '" alt="">' : medalSvg(tier);
   return '<div class="slot' + (tier ? '' : ' empty') + '"><div' + (tier ? ' class="shine"' : '') + '>' + pic + '</div><b>' + esc(label) + '</b>' +
     (sub || tier ? '<small>' + esc(sub || '') + (sub && tier ? ' &middot; ' : '') + (tier ? tier.name : '') + '</small>' : '') + '</div>';
 }
