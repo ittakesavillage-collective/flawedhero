@@ -47,7 +47,10 @@ function slot(tier, label, sub, art) {
   const still = art && (typeof art === 'string' ? art : art.front);
   // won + both sides = the turning medal; not won yet = a dark still shadow of the design
   const pic = art && tier && typeof art === 'object' ? coin(art) : still ? '<img class="art" src="' + esc(still) + '" alt="">' : medalSvg(tier);
-  return '<div class="slot' + (tier ? '' : ' empty') + '"><div' + (tier ? ' class="shine"' : '') + '>' + pic + '</div><b>' + esc(label) + '</b>' +
+  const zoomable = art && tier && typeof art === 'object';
+  return '<div class="slot' + (tier ? '' : ' empty') + (zoomable ? ' zoomable' : '') + '"' +
+    (zoomable ? ' role="button" tabindex="0" data-front="' + esc(art.front) + '" data-back="' + esc(art.back || art.front) + '" data-title="' + esc(label) + (tier ? ' ' + esc(tier.name) : '') + '" aria-label="See the ' + esc(label) + ' medal close up"' : '') +
+    '><div' + (tier ? ' class="shine"' : '') + '>' + pic + '</div><b>' + esc(label) + '</b>' +
     (sub || tier ? '<small>' + esc(sub || '') + (sub && tier ? ' &middot; ' : '') + (tier ? tier.name : '') + '</small>' : '') + '</div>';
 }
 function progress(n) {
