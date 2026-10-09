@@ -14,7 +14,11 @@ const tierFor = n => { let t = null; TIERS.forEach(x => { if (n >= x.min) t = x;
 // Give BOTH sides to get the slowly turning, glinting medal:
 //   'fh-marathon:2025': { front: 'assets/medals/fh-2025-front.png', back: 'assets/medals/fh-2025-back.png' }
 // (a plain string still works and shows a still picture)
-const MEDAL_ART = {};
+const MEDAL_ART = {
+  'fh-marathon:2024': { front: 'assets/medals/fh-2024-front.png', back: 'assets/medals/fh-2024-back.png' },
+  'fh-marathon:2025': { front: 'assets/medals/fh-2025-front.png', back: 'assets/medals/fh-2025-back.png' },
+  'fh-marathon:2026': { front: 'assets/medals/fh-2026-front.png', back: 'assets/medals/fh-2026-back.png' }
+};
 
 let _mid = 0;
 // A medal on a ribbon. tier = null draws the empty, shadowy placeholder.
