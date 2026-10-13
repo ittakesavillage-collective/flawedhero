@@ -106,7 +106,7 @@ function evCard(x) {
     '<small class="muted">' + (x.all_day ? 'All day' : fmtTime(x.starts_at) + (x.ends_at ? ' to ' + fmtTime(x.ends_at) : '')) + ' &middot; ' + d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric' }) + (x.location ? ' &middot; ' + esc(x.location) : '') + '</small>' +
     (x.status === 'pending' ? '<br><span class="chip s-suggested">Waiting for approval</span>' : x.status === 'rejected' ? '<br><span class="chip s-denied">Not approved</span>' : '') + '</div></div>' +
     (x.description ? '<p class="muted">' + esc(x.description) + '</p>' : '') +
-    ((w || attend || isStaff(me) || (mine && x.status === 'pending')) ? '<div class="btns">' + attend + (w ? '<a class="btn ghost" href="' + esc(w) + '" target="_blank" rel="noopener">' + (x.allow_attend ? 'Tickets and info' : 'More info') + '</a>' : '') +
+    ((w || attend || isStaff(me) || (mine && x.status === 'pending')) ? '<div class="btns">' + attend + (w ? '<a class="btn' + (x.series ? '' : ' ghost') + '" href="' + esc(w) + '" target="_blank" rel="noopener">' + (x.series ? 'Join on Zoom' : x.allow_attend ? 'Tickets and info' : 'More info') + '</a>' : '') +
       ((isStaff(me) || (mine && x.status === 'pending')) ? '<button class="btn ghost" data-del>Delete</button>' : '') + '</div>' : '') + '</article>';
 }
 $('list').onclick = $('past').onclick = async e => {
@@ -135,7 +135,10 @@ async function load() {
   entry = marathon && en.data ? en.data.find(r => r.event_id === marathon.id) || null : null;
   drawMarathon();
   const rest = ev.data.filter(x => x.kind === 'event' && x.status !== 'rejected' || (x.kind === 'event' && x.created_by === me.user_id));
-  const soon = rest.filter(x => new Date(x.starts_at) >= now - 864e5), past = rest.filter(x => new Date(x.starts_at) < now - 864e5).reverse();
+  // Zoom sessions repeat all year, so show only the NEXT one of each series (it stays up for an hour after it starts); they never clutter Past events
+  const HOUR = 36e5, seen = new Set();
+  const live = x => !x.series || (new Date(x.starts_at) >= now - HOUR && !seen.has(x.series) && seen.add(x.series));
+  const soon = rest.filter(x => (x.series ? true : new Date(x.starts_at) >= now - 864e5)).filter(live), past = rest.filter(x => !x.series && new Date(x.starts_at) < now - 864e5).reverse();
   $('list').innerHTML = soon.length ? soon.map(evCard).join('') : '<p class="ph">Nothing else in the diary yet.</p>';
   $('pastbox').hidden = !past.length; $('past').innerHTML = past.map(evCard).join('');
 }

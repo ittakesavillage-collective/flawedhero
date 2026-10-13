@@ -39,6 +39,13 @@
 <script>
 const $ = id => document.getElementById(id);
 let me = null;
+// Make https links tappable (Zoom links read "Join on Zoom"); everything else stays plain, escaped text
+function linkify(t) {
+  return esc(t).replace(/https:\/\/[^\s<]+/g, u => {
+    const clean = u.replace(/&amp;/g, '&'), zoom = /^https:\/\/[a-z0-9.]*zoom\.us\//i.test(clean);
+    return '<a href="' + u + '" target="_blank" rel="noopener">' + (zoom ? 'Join on Zoom' : 'Open link') + '</a>';
+  });
+}
 
 async function load() {
   const { data, error } = await sb.from('posts').select('*').order('created_at', { ascending: false });
@@ -49,7 +56,7 @@ async function load() {
     (x.is_team ? '<span class="badge">Flawed Hero team</span>' : '') +
     (x.status === 'pending' ? '<span class="chip s-suggested">Waiting for approval</span>' : x.status === 'rejected' ? '<span class="chip s-denied">Not approved</span>' : '') +
     '</div><small class="muted">' + ago(x.created_at) + '</small></div>' +
-    '<p class="body">' + esc(x.body) + '</p>' +
+    '<p class="body">' + linkify(x.body) + '</p>' +
     ((isStaff(me) || x.created_by === me.user_id) ? '<div class="btns"><button class="btn ghost" data-del style="min-height:36px">Delete</button></div>' : '') + '</article>').join('')
     : '<p class="ph">No messages yet.</p>';
 }
