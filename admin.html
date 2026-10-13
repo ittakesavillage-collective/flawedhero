@@ -124,9 +124,13 @@ async function loadMedalPrep() {
     return '<article class="card mem" data-mid="' + m.id + '"><div class="row"><b>' + esc(m.title) + (m.year ? ' ' + m.year : '') + '</b><span class="chip">' + ago(m.created_at) + '</span></div>' +
       '<small class="muted">From ' + esc(by ? by.name : 'a member') + '</small>' +
       '<div style="display:flex;gap:8px"><img src="' + esc(pic2(m.front_raw)) + '" alt="front" style="width:50%;border-radius:10px"><img src="' + esc(pic2(m.back_raw)) + '" alt="back" style="width:50%;border-radius:10px"></div>' +
+      '<p class="note">Claude prepares these at the next app update, for the best finish. You do not need to do anything.</p>' +
+      '<details><summary class="muted" style="cursor:pointer">Quick cut-out in the app (rougher than the update)</summary>' +
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">' +
       '<label class="f">How different from the background? <span class="muted" data-tolv>45</span><input type="range" data-tol min="20" max="90" value="45" style="width:100%;min-height:28px"></label>' +
-      '<div class="adm"><button class="btn" data-cut>Auto cut-out</button><button class="btn alt" data-pub disabled>Publish</button><button class="btn ghost" data-mdel>Delete</button></div>' +
-      '<div data-prev style="display:flex;gap:6px;background:#788290;border-radius:10px;padding:6px" hidden></div>' +
+      '<div class="adm" style="border:0;padding:0;margin:0"><button class="btn" data-cut>Auto cut-out</button><button class="btn alt" data-pub disabled>Publish</button></div>' +
+      '<div data-prev style="display:flex;gap:6px;background:#788290;border-radius:10px;padding:6px" hidden></div></div></details>' +
+      '<div class="adm"><button class="btn ghost" data-mdel>Delete this submission</button></div>' +
       '<details><summary class="muted" style="cursor:pointer">Or upload cut-out PNGs I made myself</summary>' +
       '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><label class="f">Front PNG<input type="file" accept="image/png" data-ownf></label><label class="f">Back PNG<input type="file" accept="image/png" data-ownb></label>' +
       '<button class="btn ghost" data-pubown>Publish my PNGs</button></div></details></article>';
