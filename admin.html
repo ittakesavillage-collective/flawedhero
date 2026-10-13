@@ -28,6 +28,8 @@
     <h3 style="font-size:18px;margin-bottom:8px">Marathon bookings</h3>
     <p class="note" id="enote" style="margin-bottom:8px"></p>
     <div id="elist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
+    <h3 style="font-size:18px;margin-bottom:8px">Medal photos to prepare</h3>
+    <div id="mplist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
     <h3 style="font-size:18px;margin-bottom:8px">Message board posts</h3>
     <div id="plist" style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"></div>
     <h3 style="font-size:18px;margin-bottom:8px">Diary events</h3>
@@ -59,6 +61,7 @@
 <script src="js/data.js"></script>
 <script src="js/db.js"></script>
 <script src="js/charities.js"></script>
+<script src="js/cutout.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 let me = null, mfilter = 'pending', members = [], events = [], results = [];
@@ -85,7 +88,7 @@ async function loadMembers() {
   members = data;
   const [ev, rs] = await Promise.all([sb.from('events').select('*').order('sort'), sb.from('results').select('*')]);
   events = ev.data || []; results = rs.data || [];
-  drawMembers(); drawClaims(); loadCharities(); loadDiary(); loadPosts();
+  drawMembers(); drawClaims(); loadCharities(); loadDiary(); loadPosts(); loadMedalPrep();
 }
 const evName = id => (events.find(e => e.id === id) || { name: id }).name;
 function drawMembers() {
@@ -106,8 +109,66 @@ function drawMembers() {
       (isAdmin(me) && m.user_id !== me.user_id ? '<select data-role aria-label="Role">' + ['member', 'super', 'admin'].map(r => '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>').join('') + '</select>' : '') +
     '</div></article>').join('') : '<p class="ph">Nobody here.</p>';
 }
-let pendingClaims = 0, pendingCharities = 0, pendingDiary = 0, pendingEntries = 0, pendingPosts = 0, charities = [];
-const tabCount = () => { const n = pendingClaims + pendingCharities + pendingDiary + pendingEntries + pendingPosts; $('ctab').textContent = n ? 'Approvals (' + n + ')' : 'Approvals'; };
+let pendingClaims = 0, pendingCharities = 0, pendingDiary = 0, pendingEntries = 0, pendingPosts = 0, pendingMedalPrep = 0, charities = [];
+const tabCount = () => { const n = pendingClaims + pendingCharities + pendingDiary + pendingEntries + pendingPosts + pendingMedalPrep; $('ctab').textContent = n ? 'Approvals (' + n + ')' : 'Approvals'; };
+
+// Members' home medals: turn their two photos into a turning medal (automatic cut-out here in the browser, or upload your own PNGs)
+const pic2 = p => !p ? '' : /^(https?:|assets\/)/.test(p) ? p : SB_URL + '/storage/v1/object/public/medals/' + p;
+const prep = {};   // id -> { pair }
+async function loadMedalPrep() {
+  const { data, error } = await sb.from('user_medals').select('*').eq('status', 'processing').order('created_at');
+  if (error) { $('mplist').innerHTML = '<p class="err">' + esc(error.message) + '</p>'; return; }
+  pendingMedalPrep = data.length; tabCount();
+  $('mplist').innerHTML = data.length ? data.map(m => {
+    const by = members.find(x => x.user_id === m.user_id);
+    return '<article class="card mem" data-mid="' + m.id + '"><div class="row"><b>' + esc(m.title) + (m.year ? ' ' + m.year : '') + '</b><span class="chip">' + ago(m.created_at) + '</span></div>' +
+      '<small class="muted">From ' + esc(by ? by.name : 'a member') + '</small>' +
+      '<div style="display:flex;gap:8px"><img src="' + esc(pic2(m.front_raw)) + '" alt="front" style="width:50%;border-radius:10px"><img src="' + esc(pic2(m.back_raw)) + '" alt="back" style="width:50%;border-radius:10px"></div>' +
+      '<label class="f">How different from the background? <span class="muted" data-tolv>45</span><input type="range" data-tol min="20" max="90" value="45" style="width:100%;min-height:28px"></label>' +
+      '<div class="adm"><button class="btn" data-cut>Auto cut-out</button><button class="btn alt" data-pub disabled>Publish</button><button class="btn ghost" data-mdel>Delete</button></div>' +
+      '<div data-prev style="display:flex;gap:6px;background:#788290;border-radius:10px;padding:6px" hidden></div>' +
+      '<details><summary class="muted" style="cursor:pointer">Or upload cut-out PNGs I made myself</summary>' +
+      '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><label class="f">Front PNG<input type="file" accept="image/png" data-ownf></label><label class="f">Back PNG<input type="file" accept="image/png" data-ownb></label>' +
+      '<button class="btn ghost" data-pubown>Publish my PNGs</button></div></details></article>';
+  }).join('') : '<p class="ph">No medal photos waiting.</p>';
+}
+async function fetchImg(path) {
+  const r = await fetch(pic2(path)); if (!r.ok) throw new Error('Could not load the photo.');
+  return loadImg(URL.createObjectURL(await r.blob()));
+}
+async function publishMedal(card, fb, bb) {
+  const id = +card.dataset.mid, mm = (await sb.from('user_medals').select('user_id').eq('id', id).single()).data;
+  const pf = mm.user_id + '/' + id + '-front.png', pb = mm.user_id + '/' + id + '-back.png';
+  for (const [p, b] of [[pf, fb], [pb, bb]]) { const { error } = await sb.storage.from('medals').upload(p, b, { contentType: 'image/png', upsert: true }); if (error) throw error; }
+  const { error } = await sb.from('user_medals').update({ front_art: pf, back_art: pb, status: 'ready' }).eq('id', id);
+  if (error) throw error;
+}
+$('mplist').oninput = e => { if (e.target.matches('[data-tol]')) e.target.closest('.card').querySelector('[data-tolv]').textContent = e.target.value; };
+$('mplist').onclick = async e => {
+  const card = e.target.closest('.card'); if (!card) return;
+  const id = +card.dataset.mid, btn = e.target.closest('button'); if (!btn) return;
+  try {
+    if (btn.matches('[data-cut]')) {
+      btn.disabled = true; btn.textContent = 'Working...';
+      const m = (await sb.from('user_medals').select('front_raw, back_raw').eq('id', id).single()).data;
+      const [fi, bi] = await Promise.all([fetchImg(m.front_raw), fetchImg(m.back_raw)]);
+      const pair = buildMedalPair(fi, bi, +card.querySelector('[data-tol]').value); prep[id] = pair;
+      const pv = card.querySelector('[data-prev]'); pv.hidden = false; pv.innerHTML = '';
+      for (const s of ['front', 'back']) { pair[s].style.cssText = 'width:50%;height:auto'; pv.appendChild(pair[s]); }
+      card.querySelector('[data-pub]').disabled = false; btn.disabled = false; btn.textContent = 'Auto cut-out again';
+    } else if (btn.matches('[data-pub]')) {
+      btn.disabled = true; btn.textContent = 'Publishing...';
+      await publishMedal(card, await canvasToPng(prep[id].front), await canvasToPng(prep[id].back)); loadMedalPrep();
+    } else if (btn.matches('[data-pubown]')) {
+      const f = card.querySelector('[data-ownf]').files[0], b = card.querySelector('[data-ownb]').files[0];
+      if (!f || !b) return alert('Choose both the front and back PNG.');
+      btn.disabled = true; await publishMedal(card, f, b); loadMedalPrep();
+    } else if (btn.matches('[data-mdel]')) {
+      if (!confirm('Delete this medal submission?')) return;
+      const { error } = await sb.from('user_medals').delete().eq('id', id); if (error) throw error; loadMedalPrep();
+    }
+  } catch (err) { alert(err.message || err); btn.disabled = false; }
+};
 
 // Message board posts from members (staff approve)
 async function loadPosts() {

@@ -68,6 +68,7 @@ async function staffDot(p) {
   const all = await Promise.all([c('profiles'), c('results'), c('charities'), c('diary_events'), c('posts')]);
   let n = all.reduce((x, y) => x + y, 0);
   if (p.role === 'super') n += await c('marathon_entries');
+  { const { count: mc } = await sb.from('user_medals').select('id', { count: 'exact', head: true }).eq('status', 'processing'); n += mc || 0; }
   if (isAdmin(p)) { const { count: rc } = await sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'suggested').eq('is_private', false); n += rc || 0; }
   const d = document.getElementById('dot'); d.textContent = n; d.hidden = !n;
 }
