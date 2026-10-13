@@ -57,7 +57,7 @@ $('open').onclick = () => { $('form').hidden = false; $('open').hidden = true; $
 $('cancel').onclick = () => { $('form').hidden = true; $('open').hidden = false; };
 $('form').onsubmit = async e => {
   e.preventDefault(); $('send').disabled = true; $('msg').hidden = true;
-  const { error } = await sb.from('requests').insert({ title: $('title').value.trim(), body: $('body').value.trim() });
+  const { error } = await sb.from('requests').insert({ title: $('title').value.trim(), body: $('body').value.trim(), is_private: isAdmin(me) });
   $('send').disabled = false;
   if (error) { $('msg').textContent = 'Couldn’t send: ' + error.message; $('msg').hidden = false; return; }
   $('form').reset(); $('form').hidden = true; $('open').hidden = false;
