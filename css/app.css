@@ -153,3 +153,16 @@ form{scroll-margin-top:76px}
   .ib.admin,.ib.plus{font-size:26px}
   .ib .dot{top:3px;right:0}
 }
+
+/* Install splash: shown for ~4 seconds to people using the app in a browser tab (js/installsplash.js) */
+#isplash{position:fixed;inset:0;z-index:100;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;transition:opacity .35s}
+#isplash.out{opacity:0;pointer-events:none}
+#isplash img{border-radius:20px;border:1px solid var(--line)}
+#isplash h2{font-size:26px;line-height:1.15;margin:0}
+#isplash ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-width:320px;text-align:left}
+#isplash li::before{content:"\2713";color:var(--gold);font-weight:700;margin-right:8px}
+#isplash .how{color:var(--muted);font-size:15px;margin:0;max-width:320px}
+#isplash .btns{justify-content:center}
+#isplash .timer{position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--line)}
+#isplash .timer i{display:block;height:100%;width:0;background:var(--gold);animation:isplashbar 4s linear forwards}
+@keyframes isplashbar{to{width:100%}}
