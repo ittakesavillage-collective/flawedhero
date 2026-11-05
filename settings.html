@@ -24,6 +24,17 @@
     <p class="note" id="nnote"></p>
     <div class="btns"><button class="btn" id="non" hidden>Turn on</button><button class="btn ghost" id="noff" hidden>Turn off</button><a class="btn" id="ninst" href="install.html" hidden>Add to home screen</a></div>
   </section>
+  <section class="card"><b>Your information</b>
+    <p class="muted">You are in control of what we hold about you.</p>
+    <div class="btns"><a class="btn ghost" href="privacy.html">How we use your information</a><button class="btn ghost" id="dl">Download my data</button></div>
+    <details><summary class="muted" style="cursor:pointer">Delete my account</summary>
+      <p class="note" style="margin:8px 0">This removes your profile, movement log, medals, bookings and photos for good. Messages you posted stay, with your name removed. It cannot be undone.</p>
+      <button class="btn danger" id="del">Delete my account and data</button><p class="err" id="delmsg" hidden></p></details>
+  </section>
+  <section class="card"><b>Something not working?</b>
+    <p class="muted">Tell us and we will sort it. Michael and Phil are in Useful Contacts.</p>
+    <div class="btns"><a class="btn ghost" href="contacts.html">Tell us</a><a class="btn ghost" href="queue.html">Suggest an improvement</a></div>
+  </section>
   <section class="card"><b>Your account</b>
     <p class="muted" id="who">Signed in</p>
     <div class="btns"><button class="btn ghost" id="out">Sign out</button></div>
@@ -65,6 +76,33 @@ N('noff').onclick = async () => { N('noff').disabled = true; await disablePush()
 drawPush();
 currentUser().then(u => { if (u) document.getElementById('who').textContent = 'Signed in as ' + u.email; });
 document.getElementById('out').onclick = async () => { await sb.auth.signOut(); location.replace('login.html'); };
+// Download everything we hold about you as a file
+document.getElementById('dl').onclick = async () => {
+  const b = document.getElementById('dl'); b.disabled = true; b.textContent = 'Gathering...';
+  try {
+    const u = await currentUser(), out = { exported_at: new Date().toISOString(), account: { email: u.email } };
+    const mine = [['profile', 'profiles', 'user_id'], ['movements', 'movements', 'user_id'], ['medal_results', 'results', 'user_id'], ['my_medals', 'user_medals', 'user_id'],
+      ['my_charities', 'my_charities', 'user_id'], ['marathon_booking', 'marathon_entries', 'user_id'], ['events_planning_to_attend', 'event_attendance', 'user_id'],
+      ['suggestions', 'requests', 'user_id'], ['messages_posted', 'posts', 'created_by'], ['notifications', 'notifications', 'user_id']];
+    for (const [k, t, col] of mine) { const { data } = await sb.from(t).select('*').eq(col, u.id); out[k] = data || []; }
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'my-flawed-hero-data.json'; a.click(); URL.revokeObjectURL(a.href);
+  } catch (err) { alert('Couldn\u2019t gather your data: ' + err.message); }
+  b.disabled = false; b.textContent = 'Download my data';
+};
+// Delete the account: remove photos first, then the account and everything linked to it
+document.getElementById('del').onclick = async () => {
+  const m = document.getElementById('delmsg'); m.hidden = true;
+  if (!confirm('Delete your account and all your data? This cannot be undone.')) return;
+  if (prompt('Type DELETE to confirm') !== 'DELETE') return;
+  const b = document.getElementById('del'); b.disabled = true;
+  try {
+    const u = await currentUser();
+    for (const bucket of ['avatars', 'medals']) { const { data } = await sb.storage.from(bucket).list(u.id); if (data && data.length) await sb.storage.from(bucket).remove(data.map(f => u.id + '/' + f.name)); }
+    const { error } = await sb.rpc('delete_my_account'); if (error) throw error;
+    await sb.auth.signOut(); location.replace('login.html');
+  } catch (err) { m.textContent = 'Couldn\u2019t delete it: ' + err.message; m.hidden = false; b.disabled = false; }
+};
 document.getElementById('upd').onclick = async () => {
   try { const r = await navigator.serviceWorker.getRegistration(); if (r) await r.update(); } catch (e) {}
   location.reload();

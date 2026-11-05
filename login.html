@@ -30,7 +30,9 @@
       <label class="f">Email<input type="email" id="email" autocomplete="email" required></label>
       <label class="f">Password<input type="password" id="pw" autocomplete="current-password" minlength="8" required></label>
       <p class="note" id="pwnote" hidden>At least 8 characters.</p>
+      <label id="agreeRow" hidden style="display:flex;gap:10px;align-items:flex-start;font-weight:400"><input type="checkbox" id="agree" style="width:22px;height:22px;flex:none;margin-top:2px"> <span>I have read <a href="privacy.html" target="_blank">how Flawed Hero uses my information</a>.</span></label>
       <div class="btns"><button class="btn" id="go">Sign in</button></div>
+      <p class="note" id="forgotRow"><a href="#" id="forgot">Forgot your password?</a></p>
       <p class="err" id="msg" hidden></p>
     </form>
     <p class="note" id="reg" hidden>Flawed Hero is for people taking part in our events. After you register, we check your details and approve you.</p>
@@ -47,7 +49,7 @@ $('ver').textContent = 'v' + VERSION;
 let mode = 'in';
 const draw = () => {
   document.querySelectorAll('#mode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === mode));
-  $('nameRow').hidden = $('pwnote').hidden = $('reg').hidden = mode === 'in';
+  $('nameRow').hidden = $('pwnote').hidden = $('reg').hidden = $('agreeRow').hidden = mode === 'in'; $('forgotRow').hidden = mode !== 'in';
   $('name').required = mode === 'up';
   $('go').textContent = mode === 'in' ? 'Sign in' : 'Register';
   $('pw').autocomplete = mode === 'in' ? 'current-password' : 'new-password';
@@ -72,7 +74,8 @@ $('form').onsubmit = async e => {
   try {
     if (mode === 'up') {
       const name = $('name').value.trim();
-      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name } } });
+      if (!$('agree').checked) throw new Error('Please tick the box to say you have read how we use your information.');
+      const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name, privacy: 'yes' } } });
       if (error) throw error;
       if (!data.session) { say('Almost there: check your email to confirm, then sign in.'); return; }
     } else {
@@ -86,6 +89,13 @@ $('form').onsubmit = async e => {
 };
 
 (async () => { if (await currentUser()) await showWait(); })();
+$('forgot').onclick = async e => {
+  e.preventDefault();
+  const email = $('email').value.trim();
+  if (!email) { say('Type your email above first, then tap "Forgot your password?" again.'); $('email').focus(); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: new URL('reset.html', location.href).href });
+  say(error ? 'Couldn\u2019t send that: ' + error.message : 'If that email has an account, a link to choose a new password is on its way. Check your junk folder too.');
+};
 </script>
 </body>
 </html>

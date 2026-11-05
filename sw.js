@@ -1,6 +1,6 @@
 ﻿// Network-first: always fetch the latest when online (updates are automatic); fall back to cache offline.
-const CACHE = 'flawedhero-v0.5.1';
-const SHELL = ['./', 'index.html', 'login.html', 'soon.html', 'profile.html', 'queue.html', 'settings.html', 'about.html', 'install.html', 'admin.html', 'contacts.html', 'cabinet.html', 'js/medals.js', 'js/charities.js', 'mycharities.html', 'network.html', 'diary.html', 'board.html', 'movement.html', 'shop.html', 'sponsors.html', 'notifications.html', 'benchmark.html', 'js/benchmark-data.js', 'js/push.js', 'js/cutout.js',
+const CACHE = 'flawedhero-v0.6.0';
+const SHELL = ['./', 'index.html', 'login.html', 'soon.html', 'profile.html', 'queue.html', 'settings.html', 'about.html', 'install.html', 'admin.html', 'contacts.html', 'cabinet.html', 'js/medals.js', 'js/charities.js', 'mycharities.html', 'network.html', 'diary.html', 'board.html', 'movement.html', 'shop.html', 'sponsors.html', 'notifications.html', 'benchmark.html', 'privacy.html', 'reset.html', 'js/benchmark-data.js', 'js/push.js', 'js/cutout.js',
   'css/app.css', 'js/data.js', 'js/db.js', 'js/installsplash.js', 'icons/icon-192.png', 'assets/splash.jpg', 'assets/collective-logo.webp', 'assets/share-qr.svg'];
 
 self.addEventListener('install', e => {
