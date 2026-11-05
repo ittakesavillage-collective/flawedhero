@@ -22,6 +22,27 @@
 .ev .row{justify-content:flex-start;gap:14px;align-items:flex-start}
 .ev .meta{flex:1;min-width:0}
 details summary{cursor:pointer;color:var(--muted);padding:8px 0}
+/* month view */
+.mnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mnav h2{font-size:20px;flex:1;text-align:center}
+.mnav button{width:44px;height:44px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface2);color:var(--ink);font-size:20px;cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:6px}
+.legend button{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:2px 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface2);color:var(--ink);cursor:pointer;font-size:.9em}
+.legend button[aria-pressed="false"]{opacity:.4;text-decoration:line-through}
+.legend i,.cat i{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--c)}
+.mcal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.wd{text-align:center;font-size:.75em;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.cell{aspect-ratio:1/1.12;border-radius:10px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:5px 2px 4px;cursor:pointer;font-family:var(--head);font-size:1.05em;min-width:0}
+.cell.blank{visibility:hidden;pointer-events:none}
+.cell.today{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.cell.sel{background:var(--gold);color:var(--on-gold)}
+.dots{display:flex;gap:2px;min-height:8px;flex-wrap:wrap;justify-content:center}
+.dots i{width:7px;height:7px;border-radius:50%;display:block;box-shadow:0 0 0 1px rgb(0 0 0 / .35)}
+.mrow{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);cursor:pointer}
+.mrow:first-of-type{border-top:0}
+.mrow .d{font-family:var(--head);color:var(--gold);min-width:64px}
+.cat{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted)}
+
 </style>
 </head>
 <body>
@@ -32,9 +53,22 @@ details summary{cursor:pointer;color:var(--muted);padding:8px 0}
 <main class="wrap">
   <section class="card big" id="mara"><p class="ph">Loading...</p></section>
 
-  <div class="row"><h2 style="font-size:20px">Coming up</h2></div>
-  <div id="list" style="display:flex;flex-direction:column;gap:12px"></div>
-  <details id="pastbox" hidden><summary>Past events</summary><div id="past" style="display:flex;flex-direction:column;gap:12px"></div></details>
+  <div class="seg" id="mode"><button data-v="month" aria-pressed="true">Month</button><button data-v="list" aria-pressed="false">List</button></div>
+
+  <section class="card" id="monthView">
+    <div class="mnav"><button id="mprev" aria-label="Previous month">&lsaquo;</button><h2 id="mtitle"></h2><button id="mnext" aria-label="Next month">&rsaquo;</button></div>
+    <div class="legend" id="legend"></div>
+    <div class="mcal" id="mhead"></div>
+    <div class="mcal" id="mgrid"></div>
+    <div class="btns"><button class="btn ghost" id="mtoday" style="min-height:36px">Today</button></div>
+    <div id="mday" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <div id="listView" hidden>
+    <div class="row"><h2 style="font-size:20px">Coming up</h2></div>
+    <div id="list" style="display:flex;flex-direction:column;gap:12px;margin-top:8px"></div>
+    <details id="pastbox" hidden><summary>Past events</summary><div id="past" style="display:flex;flex-direction:column;gap:12px"></div></details>
+  </div>
 
   <section class="card">
     <button class="btn alt" id="open">+ Add an event to the diary</button>
@@ -47,6 +81,9 @@ details summary{cursor:pointer;color:var(--muted);padding:8px 0}
       <label class="f">Details (optional)<textarea id="desc" maxlength="600" style="min-height:90px"></textarea></label>
       <label class="f">Link (optional)<input type="text" id="link" maxlength="200" inputmode="url" placeholder="e.g. www.example.com/entry"></label>
       <div id="staffx" hidden style="display:flex;flex-direction:column;gap:12px">
+        <label class="f">What kind of event?<select id="cat"></select></label>
+        <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="rep" style="width:22px;height:22px"> Repeats every week</label>
+        <label class="f" id="repRow" hidden>For how many weeks (including this one)?<input type="number" id="weeks" min="2" max="52" value="12" inputmode="numeric"></label>
         <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="att" style="width:22px;height:22px"> Show an "I plan to attend" button (a headcount for you)</label>
         <label class="f">Poster or picture (optional)<input type="file" id="pimg" accept="image/*"></label>
       </div>
@@ -62,7 +99,21 @@ details summary{cursor:pointer;color:var(--muted);padding:8px 0}
 <script src="js/charities.js"></script>
 <script>
 const $ = id => document.getElementById(id);
-let me = null, marathon = null, entry = null, going = new Set(), headcount = {};
+let me = null, marathon = null, entry = null, going = new Set(), headcount = {}, allEv = [];
+// Event categories and their colours (change here only)
+const CATS = {
+  training:  { name: 'Training',      color: '#E5533F' },
+  community: { name: 'Community',     color: '#E9A844' },
+  partner:   { name: 'Partner clubs', color: '#4FB3E8' },
+  online:    { name: 'Online (Zoom)', color: '#B197FC' },
+  marathon:  { name: 'Marathon',      color: '#F2E3BE' },
+  other:     { name: 'Other',         color: '#8C9BB0' }
+};
+const catOf = x => CATS[x.category] || CATS.other;
+const pad = n => String(n).padStart(2, '0');
+const dkey = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+let curMonth = (() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; })(), selDay = dkey(new Date()), hiddenCats = new Set();
+let mode = 'month'; try { mode = localStorage.getItem('fh.diaryMode') === 'list' ? 'list' : 'month'; } catch (e) {}
 const pic = p => !p ? '' : /^(https?:|assets\/)/.test(p) ? p : SB_URL + '/storage/v1/object/public/shop/' + p;
 const fmtDate = (t, allDay) => new Date(t).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const fmtTime = t => { const d = new Date(t); return d.getHours() === 0 && d.getMinutes() === 0 ? 'Midnight' : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
@@ -103,13 +154,23 @@ function evCard(x) {
       (isStaff(me) ? '<span class="chip">' + n + (n === 1 ? ' hero plans' : ' heroes plan') + ' to attend</span>' : '') : '';
   return '<article class="card ev" data-id="' + x.id + '">' + (x.image ? '<img src="' + esc(pic(x.image)) + '" alt="" loading="lazy" style="width:100%;border-radius:12px;display:block">' : '') + '<div class="row"><div class="date"><b>' + d.getDate() + '</b><small>' + d.toLocaleDateString('en-GB', { month: 'short' }) + '</small></div>' +
     '<div class="meta"><h3 style="font-size:18px">' + esc(x.title) + '</h3>' +
+    '<span class="cat" style="--c:' + catOf(x).color + '"><i></i>' + catOf(x).name + '</span><br>' +
     '<small class="muted">' + (x.all_day ? 'All day' : fmtTime(x.starts_at) + (x.ends_at ? ' to ' + fmtTime(x.ends_at) : '')) + ' &middot; ' + d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric' }) + (x.location ? ' &middot; ' + esc(x.location) : '') + '</small>' +
     (x.status === 'pending' ? '<br><span class="chip s-suggested">Waiting for approval</span>' : x.status === 'rejected' ? '<br><span class="chip s-denied">Not approved</span>' : '') + '</div></div>' +
     (x.description ? '<p class="muted">' + esc(x.description) + '</p>' : '') +
     ((w || attend || isStaff(me) || (mine && x.status === 'pending')) ? '<div class="btns">' + attend + (w ? '<a class="btn' + (x.series ? '' : ' ghost') + '" href="' + esc(w) + '" target="_blank" rel="noopener">' + (x.series ? 'Join on Zoom' : x.allow_attend ? 'Tickets and info' : 'More info') + '</a>' : '') +
-      ((isStaff(me) || (mine && x.status === 'pending')) ? '<button class="btn ghost" data-del>Delete</button>' : '') + '</div>' : '') + '</article>';
+      ((isStaff(me) || (mine && x.status === 'pending')) ? '<button class="btn ghost" data-del>Delete</button>' : '') +
+      ((isStaff(me) && x.series && x.series.startsWith('rec-')) ? '<button class="btn ghost" data-delall>Delete the whole series</button>' : '') + '</div>' : '') +
+    (isStaff(me) && x.kind === 'event' ? '<label class="f" style="font-weight:500">Category <select data-cat>' + Object.keys(CATS).filter(k => k !== 'marathon').map(k => '<option value="' + k + '"' + (x.category === k ? ' selected' : '') + '>' + CATS[k].name + '</option>').join('') + '</select></label>' : '') + '</article>';
 }
-$('list').onclick = $('past').onclick = async e => {
+async function evClick(e) {
+  if (e.target.matches('[data-delall]')) {
+    const ev = allEv.find(x => x.id === +e.target.closest('.ev').dataset.id);
+    if (!ev || !confirm('Delete this and every later event in the series "' + ev.title + '"?')) return;
+    const { error } = await sb.from('diary_events').delete().eq('series', ev.series).gte('starts_at', ev.starts_at);
+    if (error) return alert(error.message);
+    load(); return;
+  }
   if (e.target.matches('[data-att]')) {
     const id = +e.target.closest('.ev').dataset.id; e.target.disabled = true;
     const { error } = going.has(id) ? await sb.from('event_attendance').delete().eq('event_id', id).eq('user_id', me.user_id) : await sb.from('event_attendance').insert({ event_id: id });
@@ -121,7 +182,60 @@ $('list').onclick = $('past').onclick = async e => {
   const { error } = await sb.from('diary_events').delete().eq('id', +e.target.closest('.ev').dataset.id);
   if (error) return alert(error.message);
   load();
+}
+$('list').onclick = $('past').onclick = $('mday').onclick = evClick;
+$('list').onchange = $('past').onchange = $('mday').onchange = async e => {
+  if (!e.target.matches('[data-cat]')) return;
+  const id = +e.target.closest('.ev').dataset.id;
+  const { error } = await sb.from('diary_events').update({ category: e.target.value }).eq('id', id);
+  if (error) return alert(error.message);
+  load();
 };
+
+// ---- Month view: a coloured dot for each kind of event on a day; tap a day to see it
+const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+$('mhead').innerHTML = WD.map(w => '<div class="wd">' + w + '</div>').join('');
+function monthEvents() { return allEv.filter(x => x.status === 'approved' && !hiddenCats.has(x.category)); }
+function drawMonth() {
+  const y = curMonth.getFullYear(), m = curMonth.getMonth(), first = new Date(y, m, 1), days = new Date(y, m + 1, 0).getDate(), off = (first.getDay() + 6) % 7;
+  $('mtitle').textContent = curMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const evs = monthEvents(), by = {};
+  evs.forEach(x => { (by[dkey(new Date(x.starts_at))] = by[dkey(new Date(x.starts_at))] || []).push(x); });
+  const today = dkey(new Date());
+  let cells = ''; for (let i = 0; i < off; i++) cells += '<div class="cell blank"></div>';
+  for (let d = 1; d <= days; d++) {
+    const k = y + '-' + pad(m + 1) + '-' + pad(d), list = by[k] || [], cs = [...new Set(list.map(x => x.category))].slice(0, 4);
+    cells += '<button class="cell' + (k === today ? ' today' : '') + (k === selDay ? ' sel' : '') + '" data-d="' + k + '" aria-label="' + d + ' ' + $('mtitle').textContent + ', ' + list.length + ' event' + (list.length === 1 ? '' : 's') + '"><span>' + d + '</span><span class="dots">' +
+      cs.map(c => '<i style="background:' + (CATS[c] || CATS.other).color + '"></i>').join('') + '</span></button>';
+  }
+  $('mgrid').innerHTML = cells;
+  // legend only shows the kinds of event that exist; tap one to hide or show it
+  const present = [...new Set(allEv.filter(x => x.status === 'approved').map(x => x.category))];
+  $('legend').innerHTML = present.map(c => '<button data-c="' + c + '" aria-pressed="' + !hiddenCats.has(c) + '"><i style="width:10px;height:10px;border-radius:50%;background:' + (CATS[c] || CATS.other).color + '"></i>' + (CATS[c] || CATS.other).name + '</button>').join('');
+  // below the grid: the chosen day in full, or every event this month in short
+  if (selDay && selDay.slice(0, 7) === y + '-' + pad(m + 1)) {
+    const todays = by[selDay] || [];
+    $('mday').innerHTML = '<h3 style="font-size:16px">' + new Date(selDay + 'T12:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) + '</h3>' +
+      (todays.length ? todays.map(evCard).join('') : '<p class="ph">Nothing in the diary this day.</p>') +
+      '<button class="btn ghost" id="mall" style="align-self:flex-start;min-height:36px">Show the whole month</button>';
+  } else {
+    const all = Object.keys(by).filter(k => k.slice(0, 7) === y + '-' + pad(m + 1)).sort().flatMap(k => by[k]);
+    $('mday').innerHTML = all.length ? all.map(x => '<div class="mrow" data-d="' + dkey(new Date(x.starts_at)) + '"><span class="d">' + new Date(x.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }) + '</span>' +
+      '<span class="cat" style="--c:' + catOf(x).color + '"><i></i></span><span>' + esc(x.title) + '</span></div>').join('') : '<p class="ph">Nothing in the diary this month.</p>';
+  }
+}
+$('mgrid').onclick = e => { const b = e.target.closest('[data-d]'); if (b) { selDay = b.dataset.d; drawMonth(); } };
+$('mday').addEventListener('click', e => { if (e.target.id === 'mall') { selDay = null; drawMonth(); return; } const r = e.target.closest('.mrow'); if (r) { selDay = r.dataset.d; drawMonth(); } });
+$('legend').onclick = e => { const b = e.target.closest('[data-c]'); if (!b) return; hiddenCats.has(b.dataset.c) ? hiddenCats.delete(b.dataset.c) : hiddenCats.add(b.dataset.c); drawMonth(); };
+$('mprev').onclick = () => { curMonth = new Date(curMonth.getFullYear(), curMonth.getMonth() - 1, 1); selDay = null; drawMonth(); };
+$('mnext').onclick = () => { curMonth = new Date(curMonth.getFullYear(), curMonth.getMonth() + 1, 1); selDay = null; drawMonth(); };
+$('mtoday').onclick = () => { const t = new Date(); curMonth = new Date(t.getFullYear(), t.getMonth(), 1); selDay = dkey(t); drawMonth(); };
+function setMode(m) {
+  mode = m; try { localStorage.setItem('fh.diaryMode', m); } catch (e) {}
+  document.querySelectorAll('#mode button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === m));
+  $('monthView').hidden = m !== 'month'; $('listView').hidden = m !== 'list';
+}
+$('mode').onclick = e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.v); };
 
 async function load() {
   const [ev, en, at] = await Promise.all([sb.from('diary_events').select('*').order('starts_at'),
@@ -130,6 +244,7 @@ async function load() {
   headcount = {}; (at.data || []).forEach(r => headcount[r.event_id] = (headcount[r.event_id] || 0) + 1);
   if (ev.error) { $('mara').innerHTML = '<p class="err">Couldn’t load the diary. Check your signal and try again.</p>'; return; }
   const now = Date.now();
+  allEv = ev.data;
   const marathons = ev.data.filter(x => x.kind === 'marathon' && x.status === 'approved');
   marathon = marathons.find(x => new Date(x.starts_at) > now) || marathons[marathons.length - 1] || null;
   entry = marathon && en.data ? en.data.find(r => r.event_id === marathon.id) || null : null;
@@ -141,6 +256,7 @@ async function load() {
   const soon = rest.filter(x => (x.series ? true : new Date(x.starts_at) >= now - 864e5)).filter(live), past = rest.filter(x => !x.series && new Date(x.starts_at) < now - 864e5).reverse();
   $('list').innerHTML = soon.length ? soon.map(evCard).join('') : '<p class="ph">Nothing else in the diary yet.</p>';
   $('pastbox').hidden = !past.length; $('past').innerHTML = past.map(evCard).join('');
+  drawMonth();
 }
 
 $('open').onclick = () => { $('form').hidden = false; $('open').hidden = true; $('title').focus(); };
@@ -167,11 +283,26 @@ $('form').onsubmit = async e => {
       }
     }
   } catch (err) { $('send').disabled = false; $('msg').textContent = 'Couldn\u2019t add it: ' + err.message; $('msg').hidden = false; return; }
-  const { error } = await sb.from('diary_events').insert(row);
+  let rows = [row];
+  if (isStaff(me)) {
+    row.category = $('cat').value;
+    if ($('rep').checked) {
+      const n = Math.min(52, Math.max(2, +$('weeks').value || 12)), series = 'rec-' + Date.now(), base = new Date(row.starts_at), baseEnd = row.ends_at ? new Date(row.ends_at) : null;
+      rows = Array.from({ length: n }, (_, i) => {
+        const s = new Date(base); s.setDate(s.getDate() + 7 * i);
+        const e = baseEnd ? new Date(baseEnd) : null; if (e) e.setDate(e.getDate() + 7 * i);
+        return { ...row, starts_at: s.toISOString(), ends_at: e ? e.toISOString() : null, series };
+      });
+    }
+  }
+  const { error } = await sb.from('diary_events').insert(rows);
   $('send').disabled = false;
   if (error) { $('msg').textContent = 'Couldn’t add it: ' + error.message; $('msg').hidden = false; return; }
   $('form').reset(); $('form').hidden = true; $('open').hidden = false; load();
 };
+$('cat').innerHTML = Object.keys(CATS).filter(k => k !== 'marathon').map(k => '<option value="' + k + '">' + CATS[k].name + '</option>').join('');
+$('rep').onchange = () => { $('repRow').hidden = !$('rep').checked; };
+setMode(mode);
 guard().then(p => { if (!p) return; me = p; if (isStaff(p)) $('staffx').hidden = false;
   if (isStaff(p)) $('appnote').textContent = 'As Michael or Phil, your events go straight into the diary.'; load(); });
 </script>
