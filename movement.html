@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -29,6 +29,23 @@
 .ent button{background:none;border:0;color:var(--muted);font-size:22px;cursor:pointer;padding:4px 8px}
 .tot{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
 .tot b{display:block;font-family:var(--head);font-size:22px;color:var(--gold)}
+.bars{display:flex;align-items:flex-end;gap:6px;height:150px}
+.bar{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;min-width:0}
+.bar i{width:100%;background:var(--bronze);border-radius:6px 6px 2px 2px;min-height:3px;display:block}
+.bar.cur i{background:var(--gold)}
+.bar span{font-size:11px;color:var(--ink);font-family:var(--head)}
+.bar small{font-size:10px;color:var(--muted);white-space:nowrap}
+.rec{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.rec:first-child{border-top:0}
+.tl{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:.85em;padding:2px 10px;border-radius:999px;white-space:nowrap}
+.tl i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.tl.g{background:#173A28;color:#7FE0A4}.tl.g i{background:#3DD07A}
+.tl.a{background:#3F2E10;color:#FFD38A}.tl.a i{background:#F0A93A}
+.tl.r{background:#431A18;color:#FF9A8D}.tl.r i{background:#E5533F}
+.tl.n{background:var(--surface2);color:var(--muted)}.tl.n i{background:var(--muted)}
+.hist{display:flex;gap:8px;flex-wrap:wrap}
+.hist span{background:var(--surface2);border-radius:10px;padding:6px 10px;font-size:.9em}
+.hist b{font-family:var(--head);color:var(--gold)}
 </style>
 </head>
 <body>
@@ -43,6 +60,9 @@
     <p class="note" id="comm"></p>
   </section>
 
+  <div class="seg" id="tabs"><button data-v="log" aria-pressed="true">Log</button><button data-v="progress" aria-pressed="false">Progress</button><button data-v="strength" aria-pressed="false">Strength</button></div>
+
+  <div id="tab-log" style="display:flex;flex-direction:column;gap:18px">
   <section class="card">
     <b>I moved!</b>
     <div class="three" id="kinds"></div>
@@ -64,20 +84,26 @@
     </form>
   </section>
 
-  <section class="card" style="border-color:var(--bronze)">
-    <b>PRE-FORMANCE® Strength Benchmark</b>
-    <p class="muted">Nine home tests that show where your strength is and isn't, with a traffic-light result and the exercises to start with.</p>
-    <div class="btns"><a class="btn" href="benchmark.html">PRE-FORMANCE® Strength Benchmark</a></div>
-  </section>
-
-  <section class="card"><b>Your totals</b><div class="tot" id="tot"></div></section>
-
   <section class="card"><b>Recent movement</b><div id="list"><p class="ph">Loading...</p></div></section>
+  </div>
+
+  <div id="tab-progress" hidden style="display:flex;flex-direction:column;gap:18px">
+    <section class="card"><div class="row"><b>Last 8 weeks</b><span class="muted" id="wkunit"></span></div><div class="bars" id="bars"></div><p class="note" id="wknote"></p></section>
+    <section class="card"><b>This week</b><div class="tot" id="thisweek"></div></section>
+    <section class="card"><b>Your totals</b><div class="tot" id="tot"></div></section>
+    <section class="card"><b>Personal bests</b><div id="records"></div></section>
+  </div>
+
+  <div id="tab-strength" hidden style="display:flex;flex-direction:column;gap:18px">
+    <section class="card" id="stcard" style="border-color:var(--bronze)"></section>
+  </div>
+
   <p class="note">A simple log for now. Connecting Strava and other apps is being looked at.</p>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/data.js"></script>
 <script src="js/db.js"></script>
+<script src="js/benchmark-data.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const I = {
@@ -171,7 +197,67 @@ function draw() {
     (r.kind !== 'sport' && r.minutes ? ' &middot; ' + MINS(r.minutes) : '') + (r.note ? ' &middot; ' + esc(r.note) : '') + '</small></div>' +
     '<button data-del="' + r.id + '" aria-label="Delete">&times;</button></div>').join('')
     : '<p class="ph">Nothing yet. Tap Walk, Run, Bike or Sport above.</p>';
+  drawProgress();
 }
+
+// ---- Progress: weekly bars, this week, personal bests (all from your own log; unit follows the Distance / Time switch)
+const dOf = r => new Date(r.moved_on + 'T12:00');
+const mondayOf = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+function drawProgress() {
+  const km = view === 'km', val = r => km ? Number(r.km || 0) : Number(r.minutes || 0), f = n => km ? KM(n) : (n >= 60 ? (Math.round(n / 6) / 10) + 'h' : Math.round(n) + 'm');
+  const m0 = mondayOf(new Date()), weeks = [];
+  for (let i = 7; i >= 0; i--) { const s = new Date(m0); s.setDate(s.getDate() - 7 * i); const e = new Date(s); e.setDate(e.getDate() + 7); weeks.push({ s, e, v: 0, days: new Set() }); }
+  rows.forEach(r => { const d = dOf(r); const w = weeks.find(w => d >= w.s && d < w.e); if (w) { w.v += val(r); w.days.add(r.moved_on); } });
+  const max = Math.max(1, ...weeks.map(w => w.v));
+  $('wkunit').textContent = km ? 'km a week' : 'time a week';
+  $('bars').innerHTML = weeks.map((w, i) => '<div class="bar' + (i === 7 ? ' cur' : '') + '"><span>' + (w.v ? f(w.v) : '') + '</span><i style="height:' + Math.max(2, Math.round(w.v / max * 100)) + '%"></i><small>' + w.s.getDate() + ' ' + w.s.toLocaleDateString('en-GB', { month: 'short' }) + '</small></div>').join('');
+  const cur = weeks[7], last = weeks[6], diff = cur.v - last.v;
+  $('wknote').textContent = cur.v === 0 && last.v === 0 ? 'Log something this week to start the bars.' : (diff === 0 ? 'The same as last week.' : (diff > 0 ? 'Up ' : 'Down ') + (km ? KM(Math.abs(diff)) + ' km' : MINS(Math.abs(diff))) + ' on last week.');
+  $('thisweek').innerHTML = [[km ? KM(cur.v) + ' km' : MINS(cur.v), 'This week'], [km ? KM(last.v) + ' km' : MINS(last.v), 'Last week'], [cur.days.size + ' of 7', 'Active days']]
+    .map(x => '<div><b>' + x[0] + '</b><small class="muted">' + x[1] + '</small></div>').join('');
+  // personal bests
+  const best = {}; rows.forEach(r => { if (r.kind !== 'sport' && r.kind !== 'other' && Number(r.km) > (best[r.kind] ? Number(best[r.kind].km) : 0)) best[r.kind] = r; });
+  const longest = rows.filter(r => r.minutes).sort((a, b) => b.minutes - a.minutes)[0];
+  const bw = weeks.slice().sort((a, b) => b.v - a.v)[0];
+  const lines = ['walk', 'run', 'bike', 'swim'].filter(k => best[k]).map(k => '<div class="rec"><span>Longest ' + NAME[k].toLowerCase() + '</span><b>' + KM(Number(best[k].km)) + ' km <small class="muted">' + dOf(best[k]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + '</small></b></div>');
+  if (longest) lines.push('<div class="rec"><span>Longest session</span><b>' + MINS(longest.minutes) + ' <small class="muted">' + (longest.kind === 'sport' ? esc(longest.sport || 'Sport') : NAME[longest.kind].toLowerCase()) + '</small></b></div>');
+  if (bw && bw.v > 0) lines.push('<div class="rec"><span>Best week (last 8)</span><b>' + (km ? KM(bw.v) + ' km' : MINS(bw.v)) + '</b></div>');
+  $('records').innerHTML = lines.length ? lines.join('') : '<p class="ph">Your personal bests will appear here as you log movement.</p>';
+}
+
+// ---- Strength: the latest PRE-FORMANCE® Strength Benchmark session on this phone (results never leave it)
+function benchSessions() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+function drawStrength() {
+  const s = benchSessions(), el = $('stcard');
+  if (!s.length) {
+    el.innerHTML = '<b>PRE-FORMANCE® Strength Benchmark</b><p class="muted">Nine home tests that show where your strength is and isn\u2019t, with a traffic-light result and the exercises to start with. Takes about fifteen minutes.</p>' +
+      '<div class="btns"><a class="btn" href="benchmark.html">PRE-FORMANCE® Strength Benchmark</a></div><p class="note">Your results stay on this phone.</p>'; return;
+  }
+  const last = s[s.length - 1], prev = s[s.length - 2], days = Math.floor((Date.now() - last.t) / 864e5);
+  const j = t => judge(t, last.vals[t.id] || []);
+  const rowsHtml = TESTS.map(t => { const r = j(t); return '<div class="rec"><span>' + t.n + '. ' + t.name + '</span><span class="tl ' + r.s + '"><i></i>' + (r.done ? r.worst + ' ' + U[t.unit] : '-') + '</span></div>'; }).join('');
+  const weak = TESTS.map(t => ({ t, r: j(t) })).filter(x => x.r.done && !x.r.ok).sort((a, b) => Math.max(0, a.r.worst) / a.t.target - Math.max(0, b.r.worst) / b.t.target).slice(0, 3);
+  const trend = prev ? (last.ok > prev.ok ? 'Up ' + (last.ok - prev.ok) + ' on your previous session.' : last.ok < prev.ok ? 'Down ' + (prev.ok - last.ok) + ' on your previous session.' : 'The same as your previous session.') : '';
+  el.innerHTML = '<b>PRE-FORMANCE® Strength Benchmark</b>' +
+    '<div class="num" style="font-size:38px">' + last.ok + ' <small>of ' + last.done + ' tests at target</small></div>' +
+    '<p class="note">' + new Date(last.t).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + ' &middot; ' + (last.kind === 'retest' ? 'Retest' : 'Benchmark') + (trend ? ' &middot; ' + trend : '') + '</p>' + rowsHtml +
+    (weak.length ? '<div class="rec" style="display:block"><b style="font-family:var(--head);color:var(--gold);letter-spacing:.5px;text-transform:uppercase;font-size:.9em">Work on these first</b><p class="muted">' + weak.map(x => x.t.name).join(', ') + '</p></div>' : '') +
+    '<p class="note">' + (days >= 28 ? 'It\u2019s been ' + days + ' days since this session. A good time to retest.' : 'A retest is suggested four weeks after a session: about ' + (28 - days) + ' days to go.') + '</p>' +
+    '<div class="btns"><a class="btn" href="benchmark.html#retest">Retest now</a><a class="btn ghost" href="benchmark.html#last">See my results and exercises</a></div>' +
+    (s.length > 1 ? '<div><small class="muted">Your sessions</small><div class="hist">' + s.map(x => '<span>' + new Date(x.t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' <b>' + x.ok + '/' + x.done + '</b></span>').join('') + '</div></div>' : '') +
+    '<p class="note">Your results stay on this phone.</p>';
+}
+
+// ---- tabs
+let tab = 'log';
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === t));
+  ['log', 'progress', 'strength'].forEach(k => { $('tab-' + k).hidden = k !== t; $('tab-' + k).style.display = k === t ? 'flex' : 'none'; });
+  if (t === 'strength') drawStrength();
+}
+$('tabs').onclick = e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.v); };
+setTab(location.hash === '#strength' ? 'strength' : location.hash === '#progress' ? 'progress' : 'log');
 async function load() {
   const [m, c] = await Promise.all([sb.from('movements').select('*').order('moved_on', { ascending: false }).order('created_at', { ascending: false }).limit(2000), sb.rpc('community_movement')]);
   if (m.error) { $('list').innerHTML = '<p class="err">Couldn\u2019t load your movement. Check your signal and try again.</p>'; return; }
