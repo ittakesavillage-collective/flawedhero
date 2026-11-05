@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080D18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/favicon-32.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script>try{if(localStorage.getItem("fh.size")==="large")document.documentElement.dataset.size="large"}catch(e){}</script>
+<title>PRE-FORMANCE® Strength Benchmark · Flawed Hero</title>
+<style>
+.t{gap:10px}
+.t .num{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--gold);color:var(--on-gold);font-family:var(--head);font-weight:700;flex:none}
+.t h2{font-size:20px}
+.t .area{color:var(--cream);font-family:var(--head);letter-spacing:.5px;text-transform:uppercase;font-size:.82em}
+.in{display:flex;gap:10px}
+.in label{flex:1;display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:.92em}
+.in input{width:100%;min-height:46px}
+.tl{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:.95em;padding:4px 12px;border-radius:999px;align-self:flex-start}
+.tl i{width:12px;height:12px;border-radius:50%;display:inline-block}
+.tl.g{background:#173A28;color:#7FE0A4}.tl.g i{background:#3DD07A}
+.tl.a{background:#3F2E10;color:#FFD38A}.tl.a i{background:#F0A93A}
+.tl.r{background:#431A18;color:#FF9A8D}.tl.r i{background:#E5533F}
+.tl.n{background:var(--surface2);color:var(--muted)}.tl.n i{background:var(--muted)}
+.start{border-left:3px solid var(--gold);background:var(--surface2);border-radius:0 12px 12px 0;padding:10px 14px}
+.start b{font-family:var(--head);color:var(--gold);letter-spacing:.5px;text-transform:uppercase;font-size:.9em}
+details.how summary{cursor:pointer;color:var(--gold);font-weight:600}
+details.how p{margin-top:6px}
+.sum{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+.sum:first-of-type{border-top:0}
+.disc{font-size:13px;color:var(--muted)}
+.sess{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.sess:first-of-type{border-top:0}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <a class="back" href="movement.html">&larr; Movement</a>
+  <h1>Strength Benchmark</h1>
+</div></header>
+<main class="wrap">
+  <section class="card" style="border-color:var(--bronze)">
+    <h2 style="font-size:24px">PRE-FORMANCE® Strength Benchmark</h2>
+    <p class="tag" style="font-size:1.15em">Nine tests. Fifteen minutes.</p>
+    <p class="muted">Nine tests that show exactly where your strength is, where it isn't, and what to do about it. Do each test, stop when your form breaks down (not before), and enter your numbers. Honest numbers now mean an honest plan.</p>
+    <p class="note"><b>Your results stay on this phone.</b> Nothing is sent to anyone.</p>
+    <div class="seg" id="kind"><button data-v="benchmark" aria-pressed="true">Benchmark<br><small>Your starting point</small></button><button data-v="retest" aria-pressed="false">Retest<br><small>Check your progress</small></button></div>
+    <div class="legend" style="display:flex;gap:6px;flex-wrap:wrap"><span class="tl g"><i></i>At target</span><span class="tl a"><i></i>Below target</span><span class="tl r"><i></i>Restricted</span></div>
+    <p class="disc">Always warm up before testing and stop immediately if you feel pain or discomfort. Speak to a doctor before starting any new exercise programme.</p>
+  </section>
+
+  <div id="tests" style="display:flex;flex-direction:column;gap:14px"></div>
+
+  <section class="card" id="summary">
+    <h2 style="font-size:20px">Session summary</h2>
+    <div id="sumlist"></div>
+    <div id="overall" style="font-family:var(--head);font-size:1.4em;color:var(--gold)"></div>
+    <div id="weakest"></div>
+    <div class="btns"><button class="btn" id="save">Save this session</button><button class="btn ghost" id="clear">Clear the boxes</button></div>
+    <p class="note" id="msg" hidden></p>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:20px">Previous sessions</h2>
+    <div id="sessions"><p class="ph">No sessions saved yet. Complete your first test above.</p></div>
+  </section>
+
+  <p class="disc">Disclaimer. Always warm up before testing and stop immediately if you experience pain or discomfort. Consult a doctor before beginning any new exercise programme. PRE-FORMANCE® and Fitness Aspirations Ltd accept no liability for injury arising from use of this tool. By using this tool you agree to these terms.</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/db.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+
+// The nine tests, from Phil's PRE-FORMANCE® Strength Benchmark. sides: 2 = left and right, 1 = one result.
+const TESTS = [
+  { id: 'calf', n: 1, name: 'Single-Leg Calf Raise', area: 'Calf endurance', unit: 'reps', sides: 2, target: 25, l1: 'Left leg', l2: 'Right leg',
+    how: 'Stand on one foot on the edge of a step or wedge (flat floor if no step available). Rise slowly onto toes: 1 second up, 1 second down. Count reps until form breaks: heel not reaching full height, or rocking for momentum. Test each leg separately.',
+    why: 'The most loaded muscle in any endurance sport. Calf weakness is one of the most common causes of lower leg injury, and one of the easiest to prevent with consistent training.',
+    start: 'Double-leg calf raise. Both feet on the step or floor, rise and lower together. 3 sets of 8-12 reps at 7/10 effort. Build to 3x20 before moving to the next step.',
+    ex: 'Double-leg calf raise, then double up / single down', exBody: 'Start with double-leg calf raises: both feet rise together, both lower together. Build to 3x20 with control. Then progress to the bridge step: rise on two feet, lower slowly on one foot only (3 seconds down). This loads each calf eccentrically without needing full single-leg strength yet. Build to 3x12 each side, then move to single-leg.' },
+  { id: 'bridge', n: 2, name: 'Single-Leg Hip Bridge', area: 'Glute strength and pelvic stability', unit: 'reps', sides: 2, target: 25, l1: 'Left leg', l2: 'Right leg',
+    how: 'Lie on your back, one foot flat on the floor, other leg extended straight. Push hips up to a straight line from shoulders to knee. Hold 2 seconds at the top, 1 second down. Count reps each leg. Stop when hips drop, rotate, or you lose the hold.',
+    why: 'Protects the IT band and lower back. The glutes are supposed to be the engine. Most runners compensate with their quads instead, which is where knee and hip problems come from.',
+    start: 'Two-leg hip bridge. Both feet flat, push hips up, 2-second hold at top. 3 sets of 12-15 reps. Focus on a straight line from shoulders to knees, no sagging hips. Build to 3x25 before moving to single-leg.',
+    ex: 'Two-leg hip bridge', exBody: 'Both feet flat on the floor. Push hips up to a straight line, hold 2 seconds, lower slowly. This is the foundation. Build to 3x25 with level hips and a solid hold before attempting single-leg.' },
+  { id: 'sit', n: 3, name: 'Single-Leg Sit to Stand', area: 'Knee and glute strength', unit: 'reps', sides: 2, target: 22, l1: 'Left leg', l2: 'Right leg',
+    how: 'Sit on a standard-height chair. Hold one foot slightly off the floor. Stand on the working leg without using hands: 1 second up, 1 second down. Count reps until you need hands or the movement collapses.',
+    why: 'Replicates the single-leg loading of running and walking. If you cannot control this on a chair, you cannot control it when your legs are tired and the ground is uneven.',
+    start: 'Eccentric single-leg lower. Stand on one leg, lower slowly to the chair over 3 seconds, stand back up using both legs. 3 sets of 8-10 each side. Control the whole way down; do not drop onto the chair.',
+    ex: 'Eccentric single-leg squat (slow lower to chair)', exBody: 'Stand on one leg in front of the chair. Lower yourself slowly onto the chair over 3 seconds, as slowly and controlled as possible. Then stand up using both legs. This builds the eccentric strength needed for the full movement. Build to 3x10 controlled lowers before attempting the full sit-to-stand.' },
+  { id: 'side', n: 4, name: 'Side Plank', area: 'Lateral core stability', unit: 'sec', sides: 2, target: 60, l1: 'Left side', l2: 'Right side',
+    how: 'Forearm on the floor, feet stacked or staggered, body in a straight line from head to feet. Hips level, not sagging or piking. Time how long you can hold. Stop when hips drop more than a few centimetres.',
+    why: 'Lateral core stability holds your movement together under fatigue. When it goes, hips drop, knees cave, and the IT band tightens: the chain reaction behind most overuse injuries.',
+    start: 'Knee-down side plank. Bottom knee on the floor, body in a straight line from knee to head. Hold until hips drop. Multiple short sets with rest. Build your hold each session before moving to full side plank.',
+    ex: 'Knee-down side plank (same side)', exBody: 'Same position but the bottom knee rests on the floor instead of feet stacked. Body still in a straight line from knee to head. Build to 60 seconds each side before moving to the full version. Important: the regression is done on the same side as the full plank, not a different exercise.' },
+  { id: 'lunge', n: 5, name: 'Reverse Lunge', area: 'Running-specific leg strength', unit: 'reps', sides: 2, target: 20, l1: 'Left leg', l2: 'Right leg',
+    how: 'Stand tall. Step one foot back, lower the back knee toward the floor: 1 second down, 1 second up. Drive back to standing. Count reps on each leg until balance breaks or the back knee hits the floor hard.',
+    why: 'The closest strength movement to running and walking gait. Tests single-leg control, balance, and the deceleration strength that protects your knees on every descent and change of pace.',
+    start: 'Supported reverse lunge. Hold a wall lightly with one hand. 3 sets of 8 each leg. Remove support as soon as balance allows, even if just for the last rep of each set.',
+    ex: 'Supported reverse lunge', exBody: 'Hold a wall or sturdy chair back lightly with one hand for balance. Same movement: step back, lower the knee, drive up. Remove the support progressively as control improves. Build to 3x10 each leg without support before moving to the free-standing version.' },
+  { id: 'wall', n: 6, name: 'Wall Sit', area: 'Quad endurance', unit: 'sec', sides: 1, target: 90, l1: 'Hold time',
+    how: 'Back flat against the wall, thighs parallel to the floor, feet flat and hip-width apart. Hold. Stop when thighs rise above parallel or you push off the wall.',
+    why: 'Quad failure is what makes the last 6 miles feel like a different, worse race. This is the test that predicts it most honestly.',
+    start: 'Partial wall sit. Hips slightly above parallel (around 100-120 degrees knee bend). Hold until thighs start to give. Multiple short holds with rest. Gradually lower hips closer to parallel as strength builds.',
+    ex: 'Partial wall sit (above parallel)', exBody: 'If 20 seconds at full parallel is not achievable, sit higher: less knee bend, more like 100-120 degrees rather than 90. Build your hold time at this position, then gradually lower your hips toward parallel over several sessions as strength improves.' },
+  { id: 'balance', n: 7, name: 'Single-Leg Balance (eyes closed)', area: 'Proprioception and ankle stability', unit: 'sec', sides: 2, target: 30, l1: 'Left foot', l2: 'Right foot',
+    how: 'Stand on one foot, arms relaxed at sides, eyes closed. Time how long you hold without the free foot touching down or grabbing for support. Test both legs separately.',
+    why: 'Ankle instability is invisible until you are on uneven ground or fatigued. Eyes-closed balance strips out visual compensation and tests your true proprioception. Most people are shocked by how short this is. It gets longer fast.',
+    start: 'Eyes-open single-leg balance. Stand on one foot, focus on a fixed point. Hold until you touch down, rest, repeat. Build to 30 seconds eyes open each foot before attempting eyes closed.',
+    ex: 'Eyes-open single-leg balance', exBody: 'If you cannot hold 5 seconds with eyes closed, start with eyes open. Same position: one foot, arms relaxed. Build to 30 seconds eyes open on each foot before closing them. Eyes open first is not easy for everyone either.' },
+  { id: 'knee', n: 8, name: 'Knee to Wall', area: 'Ankle dorsiflexion / calf flexibility', unit: 'cm', sides: 2, target: 9, restrictedBelow: 5, l1: 'Left foot (cm)', l2: 'Right foot (cm)',
+    how: 'Stand facing a wall. Place one foot with toes touching the wall. Bend the knee forward to touch the wall, keeping the heel flat on the floor. If you can do this, move the foot back 1cm at a time until the heel just starts to lift. Measure the distance from the big toe to the wall. Test both legs.',
+    why: 'Restricted ankle dorsiflexion is one of the most common underlying causes of calf and Achilles injuries in runners. It also affects knee tracking and hip mechanics further up the chain. Most people have no idea their ankle range is limited until they test it.',
+    start: 'Daily calf stretching is urgent. Straight-leg calf stretch (gastrocnemius): heel on floor, lean into wall, 60 seconds each leg. Bent-knee calf stretch (soleus): same position but knee slightly bent, 60 seconds each leg. Three times daily. Retest weekly.',
+    ex: 'Calf and Achilles mobility work', exBody: 'If you cannot reach 5cm: daily calf stretching is a priority before strength work. Straight-leg calf stretch (gastrocnemius) and bent-knee calf stretch (soleus), 60 seconds each, three times daily. This responds well to frequency.' },
+  { id: 'reach', n: 9, name: 'Sit and Reach', area: 'Hamstring and lower back flexibility', unit: 'cm', sides: 1, target: 38, neg: true, l1: 'Distance reached (cm)',
+    how: 'Sit on the floor with legs straight and feet flat against a wall or box. Reach forward as far as possible with both hands, keeping knees straight. Hold for 2 seconds at the furthest point. Measure the distance reached (past the feet is positive, short of feet is negative). No bouncing.',
+    why: 'Hamstring tightness contributes to lower back pain, altered running gait, and reduced stride length. The sit and reach gives an objective measure of posterior chain flexibility, one of the most commonly neglected areas in runners.',
+    start: 'Daily hamstring and hip flexor stretching is a priority. Seated hamstring stretch and standing hamstring stretch, 60 seconds each, twice daily. This takes weeks to months. Do not skip warm-up before any session.',
+    ex: 'Daily hamstring stretching', exBody: 'If you are below target: seated hamstring stretch (legs straight, reach toward feet) and standing hamstring stretch, 60 seconds each, twice daily. Hip flexor stretching alongside. This takes weeks to months to improve, not days.' }
+];
+const U = { reps: 'reps', sec: 'sec', cm: 'cm' };
+const KEY = 'fh.benchmark.sessions';
+let kind = 'benchmark';
+
+// Traffic light for one test from what has been typed. Needs every side filled in.
+function judge(t, vals) {
+  const have = vals.filter(v => v !== '' && v != null && !isNaN(+v)).map(Number);
+  if (have.length < t.sides) return { s: 'n', label: have.length ? 'Enter both sides' : 'Not tested yet', done: false };
+  const worst = Math.min(...have);
+  if (t.restrictedBelow != null && worst < t.restrictedBelow) return { s: 'r', label: 'Restricted', done: true, worst, ok: false };
+  if (worst >= t.target) return { s: 'g', label: 'At target', done: true, worst, ok: true };
+  return { s: 'a', label: 'Below target', done: true, worst, ok: false };
+}
+const readVals = t => t.sides === 2 ? [$('t_' + t.id + '_1').value, $('t_' + t.id + '_2').value] : [$('t_' + t.id + '_1').value];
+
+function build() {
+  $('tests').innerHTML = TESTS.map(t => {
+    const inputs = (t.sides === 2 ? [1, 2] : [1]).map(i =>
+      '<label>' + (i === 1 ? t.l1 : t.l2) + '<input type="number" inputmode="decimal" step="any" ' + (t.neg ? '' : 'min="0" ') + 'id="t_' + t.id + '_' + i + '" placeholder="0"></label>').join('');
+    return '<section class="card t" id="card_' + t.id + '"><div class="row" style="justify-content:flex-start;gap:12px"><span class="num">' + t.n + '</span>' +
+      '<div><h2>' + t.name + '</h2><div class="area">' + t.area + '</div></div></div>' +
+      '<details class="how"><summary>How to test, and why it matters</summary><p><b>How to test:</b> ' + t.how + '</p><p class="muted">' + t.why + '</p></details>' +
+      '<div class="in">' + inputs + '</div><small class="muted">Target: ' + t.target + ' ' + U[t.unit] + (t.sides === 2 ? ' each side' : '') + '</small>' +
+      '<div id="res_' + t.id + '"></div></section>';
+  }).join('');
+  TESTS.forEach(t => (t.sides === 2 ? [1, 2] : [1]).forEach(i => $('t_' + t.id + '_' + i).addEventListener('input', refresh)));
+}
+
+function refresh() {
+  let done = 0, ok = 0; const weak = [];
+  TESTS.forEach(t => {
+    const j = judge(t, readVals(t));
+    if (j.done) { done++; if (j.ok) ok++; else weak.push({ t, pct: Math.max(0, j.worst) / t.target }); }
+    $('res_' + t.id).innerHTML = '<span class="tl ' + j.s + '"><i></i>' + j.label + '</span>' +
+      (j.done && !j.ok ? '<div class="start" style="margin-top:8px"><b>Start here</b><p>' + t.start + '</p><p class="muted"><b>Your exercise: ' + t.ex + '.</b> ' + t.exBody + '</p></div>' : '');
+  });
+  $('sumlist').innerHTML = TESTS.map(t => {
+    const j = judge(t, readVals(t));
+    return '<div class="sum"><span>' + t.n + '. ' + t.name + '</span><span class="tl ' + j.s + '" style="padding:2px 10px"><i></i>' + (j.done ? j.worst + ' ' + U[t.unit] : '-') + '</span></div>';
+  }).join('');
+  $('overall').textContent = done ? ok + ' of ' + done + ' tests at target' + (done < TESTS.length ? ' (' + (TESTS.length - done) + ' to go)' : '') : '';
+  weak.sort((a, b) => a.pct - b.pct);
+  $('weakest').innerHTML = weak.length ? '<div class="start"><b>Work on these first</b><p>' + weak.map(w => w.t.name).join(', ') + '. These are furthest from target.</p></div>' : '';
+}
+
+function sessions() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+function drawSessions() {
+  const s = sessions();
+  $('sessions').innerHTML = s.length ? s.slice().reverse().map((x, i) =>
+    '<div class="sess"><div><b>' + new Date(x.t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + '</b> &middot; ' + (x.kind === 'retest' ? 'Retest' : 'Benchmark') +
+    '<br><small class="muted">' + x.ok + ' of ' + x.done + ' tests at target</small></div><div class="btns"><button class="btn ghost" data-load="' + (s.length - 1 - i) + '" style="min-height:36px;padding:2px 12px">Load</button><button class="btn ghost" data-del="' + (s.length - 1 - i) + '" style="min-height:36px;padding:2px 12px">Delete</button></div></div>').join('')
+    : '<p class="ph">No sessions saved yet. Complete your first test above.</p>';
+}
+$('sessions').onclick = e => {
+  const s = sessions(), l = e.target.dataset.load, d = e.target.dataset.del;
+  if (l != null) { const x = s[+l]; TESTS.forEach(t => (t.sides === 2 ? [1, 2] : [1]).forEach(i => { $('t_' + t.id + '_' + i).value = (x.vals[t.id] || [])[i - 1] ?? ''; })); refresh(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  if (d != null && confirm('Delete this saved session?')) { s.splice(+d, 1); try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (err) {} drawSessions(); }
+};
+$('save').onclick = () => {
+  let done = 0, ok = 0; const vals = {};
+  TESTS.forEach(t => { const v = readVals(t); vals[t.id] = v; const j = judge(t, v); if (j.done) { done++; if (j.ok) ok++; } });
+  const m = $('msg'); m.hidden = false;
+  if (!done) { m.textContent = 'Enter at least one test result first.'; return; }
+  const s = sessions(); s.push({ t: Date.now(), kind, vals, done, ok });
+  try { localStorage.setItem(KEY, JSON.stringify(s)); m.textContent = 'Saved on this phone.'; } catch (err) { m.textContent = 'Couldn’t save on this phone.'; }
+  drawSessions();
+};
+$('clear').onclick = () => { if (!confirm('Clear all the boxes?')) return; document.querySelectorAll('#tests input').forEach(i => i.value = ''); refresh(); };
+$('kind').onclick = e => { const b = e.target.closest('button'); if (!b) return; kind = b.dataset.v; document.querySelectorAll('#kind button').forEach(x => x.setAttribute('aria-pressed', x === b)); };
+
+build(); refresh(); drawSessions();
+guard();
+</script>
+</body>
+</html>
